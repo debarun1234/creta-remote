@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="lock"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_lock"
+        android:shortcutShortLabel="@string/shortcut_lock">
+        <intent
+            android:action="com.debarun.cretaremote.LOCK"
+            android:targetClass="com.debarun.cretaremote.MainActivity"
+            android:targetPackage="com.debarun.cretaremote" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="unlock"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_unlock"
+        android:shortcutShortLabel="@string/shortcut_unlock">
+        <intent
+            android:action="com.debarun.cretaremote.UNLOCK"
+            android:targetClass="com.debarun.cretaremote.MainActivity"
+            android:targetPackage="com.debarun.cretaremote" />
+    </shortcut>
+</shortcuts>

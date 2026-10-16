@@ -1,0 +1,9 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- red SUV silhouette, scaled to the adaptive-icon safe zone -->
+    <group android:translateX="26" android:translateY="35" android:scaleX="0.077" android:scaleY="0.077">
+        <path android:fillColor="#E3192D" android:pathData="M 82,238 L 75,204 C 72,172 72,140 78,114 L 98,72 C 104,58 114,50 132,48 L 372,46 C 402,46 424,52 442,64 L 516,112 C 528,118 548,120 572,124 L 652,130 C 680,134 700,150 704,178 L 705,208 C 706,226 700,238 688,241 L 650,243 L 646,232 A 60 60 0 1 0 524,232 L 268,232 A 60 60 0 1 0 146,232 L 92,238 Z" />
+        <path android:fillColor="#0B0C10" android:pathData="M 124,114 L 138,64 C 142,56 152,53 166,53 L 372,53 C 396,53 414,58 428,68 L 506,114 Z" />
+        <path android:fillColor="#0B0C10" android:pathData="M 585,162 a 50,50 0 1,0 0.1,0 Z" />
+        <path android:fillColor="#0B0C10" android:pathData="M 207,162 a 50,50 0 1,0 0.1,0 Z" />
+    </group>
+</vector>
