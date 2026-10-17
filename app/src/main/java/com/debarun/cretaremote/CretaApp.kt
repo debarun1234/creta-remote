@@ -17,6 +17,7 @@ class CretaApp : Application() {
     override fun onCreate() {
         super.onCreate()
         repo = Repository(this)
+        com.debarun.cretaremote.data.Notifier.ensureChannels(this)
         // Builds fuel / mileage history in the background (cheap cloud read, never wakes the car).
         val req = PeriodicWorkRequestBuilder<SnapshotWorker>(15, TimeUnit.MINUTES)
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())

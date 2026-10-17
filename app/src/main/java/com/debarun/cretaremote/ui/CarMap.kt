@@ -232,6 +232,7 @@ fun CarMap(
     sub: String?,
     modifier: Modifier = Modifier,
     focus: MapFocus? = null,
+    me: Pair<Double, Double>? = null,
 ) {
     val ctx = LocalContext.current
     val dens = LocalDensity.current.density
@@ -383,6 +384,27 @@ fun CarMap(
                 drawCircle(Color(0xFF0B0D12), 1.8.dp.toPx(), pts[i])
             }
 
+            // ---- you (the phone), with a line and the distance to the car
+            if (me != null && pts.isNotEmpty()) {
+                val m = toScreen(me)
+                val c = pts.last()
+                drawLine(
+                    C.Cyan.copy(alpha = 0.85f), m, c, 2.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 6.dp.toPx()), -flow * 12.dp.toPx()),
+                )
+                val pr = (pulse + 0.25f) % 1f
+                drawCircle(C.Cyan.copy(alpha = (1f - pr) * 0.45f), 8.dp.toPx() + 22.dp.toPx() * pr, m, style = Stroke(1.5.dp.toPx()))
+                drawCircle(Color.White, 8.dp.toPx(), m)
+                drawCircle(C.Cyan, 5.dp.toPx(), m)
+                val meters = com.debarun.cretaremote.data.Geo.distanceM(me.first, me.second, car!!.first, car.second)
+                val txt = measurer.measure(if (meters < 1000) "${meters.roundToInt()} m" else "${Fmt.n(meters / 1000.0, 1)} km", TextStyle(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium))
+                val mid = Offset((m.x + c.x) / 2f, (m.y + c.y) / 2f)
+                val bw = txt.size.width + 16.dp.toPx()
+                val bh = txt.size.height + 8.dp.toPx()
+                drawRoundRect(Color(0xE6101218), Offset(mid.x - bw / 2f, mid.y - bh / 2f), Size(bw, bh), CornerRadius(bh / 2f))
+                drawText(txt, topLeft = Offset(mid.x - txt.size.width / 2f, mid.y - txt.size.height / 2f))
+            }
+
             // ---- the car
             if (pts.isNotEmpty()) {
                 val p = pts.last()
@@ -414,8 +436,8 @@ fun CarMap(
             MapButton(Icons.Rounded.Add) { flyTo(cLat, cLon, (zoom + 1f).coerceAtMost(18.5f), 350) }
             MapButton(Icons.Rounded.Remove) { flyTo(cLat, cLon, (zoom - 1f).coerceAtLeast(3f), 350) }
             if (car != null) MapButton(Icons.Rounded.MyLocation) { flyTo(car.first, car.second, 16f, 1100) }
-            if (points.size > 1) MapButton(Icons.Rounded.Timeline) {
-                val (la, lo, zz) = fitCamera(points, sizePx.width, sizePx.height, dens)
+            if (points.size > 1 || me != null) MapButton(Icons.Rounded.Timeline) {
+                val (la, lo, zz) = fitCamera(points + listOfNotNull(me), sizePx.width, sizePx.height, dens)
                 flyTo(la, lo, zz, 1200)
             }
         }

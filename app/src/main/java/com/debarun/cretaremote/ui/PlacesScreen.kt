@@ -1,7 +1,10 @@
 package com.debarun.cretaremote.ui
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -25,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -37,6 +41,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.debarun.cretaremote.data.AppData
 import com.debarun.cretaremote.data.Geo
 import kotlinx.coroutines.launch
@@ -61,6 +67,11 @@ fun PlacesScreen(d: AppData) {
     val scroll = rememberScrollState()
     val scope = rememberCoroutineScope()
     var focus by remember { mutableStateOf<MapFocus?>(null) }
+    var locTick by remember { mutableIntStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { locTick++ }
+    val locAllowed = remember(locTick) { Perms.locationAllowed(ctx) }
+    val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { locTick++ }
+    val me by rememberPhoneLocation(locAllowed)
     val now = remember(d.fetchedAt) { System.currentTimeMillis() }
 
     fun open(uri: String, chooser: Boolean = false) {
@@ -105,6 +116,7 @@ fun PlacesScreen(d: AppData) {
                     sub = since?.let { "Parked ${agoText(it, now)}" },
                     modifier = Modifier.fillMaxWidth().height(400.dp),
                     focus = focus,
+                    me = me,
                 )
             }
         }
@@ -118,6 +130,21 @@ fun PlacesScreen(d: AppData) {
                 }
                 if (lat != null && lon != null) {
                     Txt("${Fmt.n(lat, 5)}, ${Fmt.n(lon, 5)}", size = 11.sp, color = C.Faint, mono = true)
+                }
+                val here = me
+                if (here != null && lat != null && lon != null) {
+                    val m = Geo.distanceM(here.first, here.second, lat, lon)
+                    Txt(
+                        "You're ${if (m < 1000) "${m.toInt()} m" else "${Fmt.n(m / 1000.0, 1)} km"} from your Creta  ·  about ${maxOf(1, (m / 80).toInt())} min on foot as the crow flies",
+                        size = 12.sp, color = C.Cyan,
+                    )
+                } else if (!locAllowed) {
+                    GhostButton("Show my location on the map", {
+                        if (!Perms.asked(ctx, "loc")) {
+                            Perms.markAsked(ctx, "loc")
+                            locLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                        } else Perms.openAppSettings(ctx)
+                    }, color = C.Cyan)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(Modifier.weight(1f)) { GhostButton("Navigate", { if (lat != null) open("google.navigation:q=$lat,$lon&mode=d") }, color = C.Green) }

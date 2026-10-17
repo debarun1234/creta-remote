@@ -364,6 +364,7 @@ class Repository(private val ctx: Context) {
         val lat = car.lat
         val lon = car.lon
         if (lat != null && lon != null) recordPlace(lat, lon, car.locTime ?: now)
+        checkAlerts(car, now)
 
         _data.update {
             it.copy(
@@ -375,6 +376,47 @@ class Repository(private val ctx: Context) {
                 places = store.places(),
             )
         }
+    }
+
+    /**
+     * Background alerts, only when the app is closed and only on a change so nothing repeats: fuel just went low,
+     * something was just left open, or the car has sat unlocked for 20 minutes.
+     */
+    private fun checkAlerts(car: CarState, now: Long) {
+        val st = _data.value.settings
+        val prev = runCatching { JSONObject(store.kvGet("alert_state") ?: "{}") }.getOrDefault(JSONObject())
+        val wasLow = prev.optBoolean("low")
+        val wasOpen = prev.optBoolean("open")
+        val unlockedSince = prev.optLong("unl", 0L)
+        val unlockedNotified = prev.optBoolean("unlN")
+
+        val open = car.doorsOpen.any || car.hoodOpen || car.trunkOpen
+        val unlockedNow = car.locked == false && car.engineOn != true
+        val since = if (unlockedNow) (if (unlockedSince > 0) unlockedSince else now) else 0L
+        var notified = unlockedNow && unlockedNotified
+        val canNotify = !AppForeground.visible && st.notifyAlerts
+
+        if (canNotify) {
+            if (car.lowFuel && !wasLow) {
+                Notifier.alert(ctx, 201, "Fuel is low", car.dteKm?.let { "About ${it.toInt()} km of range left." } ?: "Time to refuel.")
+            }
+            if (open && !wasOpen) {
+                val parts = buildList {
+                    if (car.doorsOpen.fl) add("front left door")
+                    if (car.doorsOpen.fr) add("front right door")
+                    if (car.doorsOpen.rl) add("rear left door")
+                    if (car.doorsOpen.rr) add("rear right door")
+                    if (car.hoodOpen) add("bonnet")
+                    if (car.trunkOpen) add("boot")
+                }
+                Notifier.alert(ctx, 202, "Your Creta has something open", parts.joinToString(", ").replaceFirstChar { it.uppercase() } + " is open.")
+            }
+            if (unlockedNow && !notified && now - since >= 20 * 60_000L) {
+                Notifier.alert(ctx, 203, "Your Creta is unlocked", "It has been unlocked for over 20 minutes.")
+                notified = true
+            }
+        }
+        store.kvPut("alert_state", JSONObject().put("low", car.lowFuel).put("open", open).put("unl", since).put("unlN", notified).toString())
     }
 
     private fun recordPlace(lat: Double, lon: Double, ts: Long) {
@@ -568,9 +610,11 @@ class Repository(private val ctx: Context) {
         var sent = false
         val t0 = System.currentTimeMillis()
         var sendMs: Long? = null
-        fun log(outcome: Outcome, msg: String) = logActivity(
-            Activity(t0, cmd, outcome, msg, sendMs, System.currentTimeMillis() - t0, if (cmd == Cmd.HORN) client.lastRoute else null),
-        )
+        fun log(outcome: Outcome, msg: String) {
+            logActivity(Activity(t0, cmd, outcome, msg, sendMs, System.currentTimeMillis() - t0, if (cmd == Cmd.HORN) client.lastRoute else null))
+            // the app is closed (Quick Settings tile, shortcut, or the user switched away): tell them how it ended
+            if (!AppForeground.visible && _data.value.settings.notifyCommands) Notifier.command(ctx, cmd, outcome, msg)
+        }
         setCmd(cmd, Phase.SENDING, "Sending to car…")
         try {
             val pin = vault.get("pin").orEmpty()

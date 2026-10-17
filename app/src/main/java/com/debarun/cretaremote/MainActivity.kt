@@ -26,6 +26,16 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        com.debarun.cretaremote.data.AppForeground.visible = true
+    }
+
+    override fun onStop() {
+        com.debarun.cretaremote.data.AppForeground.visible = false
+        super.onStop()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         launchAction.value = intent.action
