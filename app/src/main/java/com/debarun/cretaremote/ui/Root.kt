@@ -78,12 +78,19 @@ fun Root(
 ) {
     val data by vm.data.collectAsStateWithLifecycle()
 
+    // welcome screen on every cold start; rememberSaveable so rotation doesn't replay it
+    var welcomed by rememberSaveable { mutableStateOf(false) }
+
     Box(Modifier.fillMaxSize().background(C.Bg)) {
         Backdrop()
         when {
             data.booting -> Unit
+            !data.signedIn && !data.settings.onboarded -> SetupFlow(data, vm)
             !data.signedIn -> LoginScreen(data, vm)
             else -> Shell(data, vm, launchAction, confirm)
+        }
+        AnimatedVisibility(!welcomed, exit = fadeOut(tween(450))) {
+            WelcomeSplash(ready = !data.booting, signedIn = data.signedIn, onDone = { welcomed = true })
         }
     }
 }

@@ -8,6 +8,7 @@ data class Settings(
     val confirmBiometric: Boolean = true,
     val climateTempC: Double = 22.0,
     val climateMinutes: Int = 10,
+    val onboarded: Boolean = false,
 )
 
 class SettingsStore(context: Context) {
@@ -19,6 +20,7 @@ class SettingsStore(context: Context) {
         confirmBiometric = p.getBoolean("bio", true),
         climateTempC = p.getFloat("temp", 22f).toDouble(),
         climateMinutes = p.getInt("mins", 10),
+        onboarded = p.getBoolean("onboarded", false),
     )
 
     fun save(s: Settings) {
@@ -28,6 +30,7 @@ class SettingsStore(context: Context) {
             .putBoolean("bio", s.confirmBiometric)
             .putFloat("temp", s.climateTempC.toFloat())
             .putInt("mins", s.climateMinutes)
+            .putBoolean("onboarded", s.onboarded)
             .apply()
     }
 }

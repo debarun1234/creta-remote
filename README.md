@@ -26,6 +26,15 @@ Built with Kotlin and Jetpack Compose. Talks straight to Hyundai's Bluelink clou
 
 Password, PIN and tokens are encrypted with an Android Keystore key and only ever sent to Hyundai. Unlock, start and stop can be gated behind fingerprint, face or phone PIN (Settings).
 
+## Install on your phone
+
+1. Phone: **Settings → About phone**, tap *Build number* 7 times, then **Developer options → USB debugging** on.
+2. Connect by USB and accept the "Allow USB debugging" prompt.
+3. Android Studio: pick your phone in the device dropdown and press **Run**. Or from a terminal: `./gradlew :app:installDebug`.
+4. Without a cable: download `app-debug.apk` from the latest GitHub Actions run, open it on the phone and allow "Install unknown apps" for your browser/Files app.
+
+First launch shows a three-step setup (what it does, its limits, biometric/tank preferences), then sign-in. Every launch after that opens with the welcome screen (tap to skip).
+
 ## Build
 
 Needs JDK 17 and the Android SDK (API 35). Open in Android Studio, or:
