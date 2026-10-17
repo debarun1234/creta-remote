@@ -203,7 +203,7 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
         // ------------------------------------------------------------- vehicle health
         Panel(Modifier.fillMaxWidth()) {
             Row(Modifier.padding(18.dp), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                TopCar(Modifier.width(112.dp), car, car?.engineOn == true, car?.headlampsOn == true)
+                TopCar(Modifier.width(128.dp), car, car?.engineOn == true, car?.headlampsOn == true)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Eyebrow("Vehicle health")
                     healthRows(car).forEach { (label, value, level) -> HealthRow(label, value, level) }

@@ -117,7 +117,7 @@ fun WelcomeSplash(ready: Boolean, signedIn: Boolean, onDone: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            SideCar(Modifier.fillMaxWidth(), engineOn = false, lightsOn = true, doorOpen = false, locked = true, flash = 0)
+            SideCar(Modifier.fillMaxWidth(), lightsOn = true)
             Spacer(Modifier.height(28.dp))
             Column(
                 Modifier.graphicsLayer { alpha = rise.value; translationY = (1f - rise.value) * 24.dp.toPx() },
@@ -203,7 +203,7 @@ fun SetupFlow(d: AppData, vm: AppViewModel) {
             ) {
                 when (s) {
                     0 -> {
-                        SideCar(Modifier.fillMaxWidth(), engineOn = false, lightsOn = false, doorOpen = false, locked = true, flash = 0)
+                        SideCar(Modifier.fillMaxWidth())
                         Column {
                             Eyebrow("Welcome", color = C.RedHi)
                             Txt("Your Creta,\nwithout the wait.", Modifier.padding(top = 8.dp), size = 34.sp, weight = FontWeight.Light, spacing = (-0.8).sp, lineHeight = 40.sp)

@@ -36,7 +36,7 @@ fun LoginScreen(d: AppData, vm: AppViewModel) {
             .padding(horizontal = 20.dp).padding(top = 24.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        SideCar(Modifier.fillMaxWidth(), engineOn = false, lightsOn = false, doorOpen = false, locked = true, flash = 0)
+        SideCar(Modifier.fillMaxWidth())
         Column {
             Eyebrow("Hyundai Creta · Bluelink India")
             Txt("Creta Remote", size = 36.sp, weight = FontWeight.Light, spacing = (-0.8).sp)

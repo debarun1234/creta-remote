@@ -5,7 +5,7 @@ Built with Kotlin and Jetpack Compose. Talks straight to Hyundai's Bluelink clou
 
 ## What it does
 
-- **Garage**: your red Creta in vector, driving in on launch, light sweeping over the paint, headlight bloom when the engine runs, pulse ring and hazard blinks on every lock or unlock.
+- **Garage**: your own mulberry Creta photos (home, welcome, vehicle report). The car drives in on launch, a light sheen sweeps the paint, lamps glow when the engine runs, and a pulse ring plus hazard blinks play on every lock or unlock. The top-down vehicle report highlights open doors, windows, hood, rear gate and low-pressure tyres live.
 - **Remote control**: slide-to-lock/unlock, climate and engine start (temperature and duration), horn and lights, navigate to the car. Each command shows live progress until the car confirms.
 - **Telemetry**: liquid-fill fuel gauge, range, rolling odometer, 12V battery, doors, windows, hood, boot, tyre and fluid warnings on a live top-down car.
 - **Insights**: km/L from your real fill-ups, efficiency trend, refuel-by date and empty date prediction, 14-day distance bars, running cost, fill-up log.
@@ -62,9 +62,8 @@ GitHub Actions (`.github/workflows/build.yml`) builds the debug APK and uploads 
 app/src/main/java/com/debarun/cretaremote/
   bluelink/   API client, models, tolerant response parser
   data/       repository, SQLite history, fuel analytics, encrypted vault, settings
-  ui/         theme, animated car art, components, screens
+  ui/         theme, animated car photos + live status overlays, components, screens
   work/       15-minute background snapshots
-tools/        regenerates ui/CarPaths.kt from the SVG art in tools/art
 ```
 
 Not affiliated with Hyundai. Use at your own risk, and keep your Bluelink credentials to yourself.
