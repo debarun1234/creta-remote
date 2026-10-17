@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
@@ -149,7 +150,7 @@ private fun Shell(
             }
         }
 
-        CommandBanner(data, Modifier.align(Alignment.TopCenter))
+        CommandBanner(data, vm::cancelCmd, Modifier.align(Alignment.TopCenter))
         NavBar(tab, { tab = it }, Modifier.align(Alignment.BottomCenter))
 
         AnimatedVisibility(
@@ -242,7 +243,7 @@ private fun NavBar(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = 
 }
 
 @Composable
-private fun CommandBanner(data: com.debarun.cretaremote.data.AppData, modifier: Modifier = Modifier) {
+private fun CommandBanner(data: com.debarun.cretaremote.data.AppData, onCancel: () -> Unit, modifier: Modifier = Modifier) {
     val c = data.cmd
     AnimatedVisibility(
         visible = c.phase != Phase.IDLE,
@@ -257,9 +258,19 @@ private fun CommandBanner(data: com.debarun.cretaremote.data.AppData, modifier: 
             verticalAlignment = Alignment.CenterVertically,
         ) {
             PhaseGlyph(c.phase)
-            Column(Modifier.padding(start = 12.dp)) {
+            Column(Modifier.padding(start = 12.dp).widthIn(max = 230.dp)) {
                 Txt(c.cmd?.label ?: "", size = 14.sp, weight = FontWeight.SemiBold)
                 Txt(c.message, size = 12.sp, color = C.Dim)
+            }
+            if (c.busy) {
+                Txt(
+                    "Cancel",
+                    Modifier.padding(start = 14.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x33E3192D))
+                        .border(1.dp, C.Red, RoundedCornerShape(16.dp))
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onCancel() }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    size = 13.sp, weight = FontWeight.SemiBold, color = C.RedHi,
+                )
             }
         }
     }

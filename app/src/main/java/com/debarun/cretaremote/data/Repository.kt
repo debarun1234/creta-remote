@@ -12,6 +12,9 @@ import com.debarun.cretaremote.bluelink.TripEntry
 import com.debarun.cretaremote.bluelink.TripSummary
 import com.debarun.cretaremote.bluelink.Vehicle
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -41,7 +44,7 @@ enum class Cmd(val label: String) {
     HORN("Horn & lights"),
 }
 
-enum class Phase { IDLE, SENDING, WAITING, OK, FAIL }
+enum class Phase { IDLE, SENDING, WAITING, OK, FAIL, CANCELLED }
 
 data class CmdUi(val cmd: Cmd? = null, val phase: Phase = Phase.IDLE, val message: String = "") {
     val busy get() = phase == Phase.SENDING || phase == Phase.WAITING
@@ -514,8 +517,25 @@ class Repository(private val ctx: Context) {
         }
     }
 
+    @Volatile private var cmdJob: Job? = null
+    @Volatile private var cancelRequested = false
+
+    /**
+     * Cancels the running command. Before the request is sent this stops it outright; once Hyundai has accepted it
+     * there is no way to recall it, so this only stops waiting and the car may still carry it out.
+     */
+    fun cancelCmd() {
+        if (!_data.value.cmd.busy) return
+        cancelRequested = true
+        client.cancelInFlight()
+        cmdJob?.cancel()
+    }
+
     suspend fun run(cmd: Cmd) {
         if (_data.value.cmd.busy) return
+        cmdJob = currentCoroutineContext()[Job]
+        cancelRequested = false
+        var sent = false
         setCmd(cmd, Phase.SENDING, "Sending to car…")
         try {
             val pin = vault.get("pin").orEmpty()
@@ -533,6 +553,7 @@ class Repository(private val ctx: Context) {
                 }
             }
             val v = vehicleUsed ?: return
+            sent = true
             setCmd(cmd, Phase.WAITING, "Waiting for the car…")
             var result = ActionResult.PENDING
             val started = System.currentTimeMillis()
@@ -565,9 +586,19 @@ class Repository(private val ctx: Context) {
                 else -> setCmd(cmd, Phase.OK, "Sent. The car hasn't confirmed yet.")
             }
         } catch (e: Exception) {
-            setCmd(cmd, Phase.FAIL, friendly(e))
+            if (cancelRequested || e is CancellationException) {
+                setCmd(
+                    cmd, Phase.CANCELLED,
+                    if (sent) "Stopped waiting. The car may still carry the command out."
+                    else "Cancelled. If the request had already left your phone, the car may still act on it.",
+                )
+            } else {
+                setCmd(cmd, Phase.FAIL, friendly(e))
+            }
+        } finally {
+            cmdJob = null
         }
-        scope.launch { delay(3_500); _data.update { if (it.cmd.busy) it else it.copy(cmd = CmdUi()) } }
+        scope.launch { delay(if (_data.value.cmd.phase == Phase.CANCELLED) 5_000 else 3_500); _data.update { if (it.cmd.busy) it else it.copy(cmd = CmdUi()) } }
     }
 
     private fun doneText(c: Cmd) = when (c) {

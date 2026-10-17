@@ -282,6 +282,9 @@ class BluelinkClient {
     /** Used by the repository to build a session with a verified control token. */
     internal suspend fun withControlToken(s: Session, pin: String): Session = controlToken(s, pin)
 
+    /** Aborts every request currently in flight (used when the user cancels a command). */
+    fun cancelInFlight() = http.dispatcher.cancelAll()
+
     private fun exec(req: Request): JSONObject {
         http.newCall(req).execute().use { r ->
             val text = r.body?.string().orEmpty()

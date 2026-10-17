@@ -42,6 +42,8 @@ abstract class CarTile : TileService() {
 
     override fun onClick() {
         super.onClick()
+        val c = repo.data.value.cmd
+        if (c.busy && c.cmd == cmd) { repo.cancelCmd(); return } // tapping the tile again cancels
         val go = { repo.runDetached(cmd) }
         if (needsDeviceUnlock && isLocked) unlockAndRun(go) else go()
     }
@@ -55,6 +57,7 @@ abstract class CarTile : TileService() {
             c.phase == Phase.WAITING -> "Waiting..."
             c.phase == Phase.OK -> "Done"
             c.phase == Phase.FAIL -> "Failed"
+            c.phase == Phase.CANCELLED -> "Cancelled"
             else -> idleLabel
         }
         tile.label = idleLabel

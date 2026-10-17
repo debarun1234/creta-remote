@@ -18,6 +18,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh(live: Boolean) { viewModelScope.launch { repo.refresh(live) } }
     fun run(cmd: Cmd) { viewModelScope.launch { repo.run(cmd) } }
+    fun cancelCmd() = repo.cancelCmd()
     fun signIn(email: String, password: String, pin: String) { viewModelScope.launch { repo.signIn(email, password, pin) } }
     fun signOut() = repo.signOut()
     fun savePin(pin: String) = repo.savePin(pin)

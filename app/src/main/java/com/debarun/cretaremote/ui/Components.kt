@@ -422,7 +422,7 @@ fun PhaseGlyph(phase: Phase, modifier: Modifier = Modifier, size: Dp = 22.dp) {
     val inf = rememberInfiniteTransition(label = "pg")
     val spin by inf.animateFloat(0f, 360f, infiniteRepeatable(tween(800, easing = LinearEasing)), label = "spin")
     val draw = remember { Animatable(0f) }
-    LaunchedEffect(phase) { draw.snapTo(0f); if (phase == Phase.OK || phase == Phase.FAIL) draw.animateTo(1f, tween(450, easing = FastOutSlowInEasing)) }
+    LaunchedEffect(phase) { draw.snapTo(0f); if (phase == Phase.OK || phase == Phase.FAIL || phase == Phase.CANCELLED) draw.animateTo(1f, tween(450, easing = FastOutSlowInEasing)) }
     Canvas(modifier.size(size)) {
         val w = this.size.width
         when (phase) {
@@ -439,6 +439,11 @@ fun PhaseGlyph(phase: Phase, modifier: Modifier = Modifier, size: Dp = 22.dp) {
                 val t = draw.value
                 drawLine(C.RedHi, Offset(w * 0.32f, w * 0.32f), Offset(w * (0.32f + 0.36f * t), w * (0.32f + 0.36f * t)), 2.6.dp.toPx(), StrokeCap.Round)
                 drawLine(C.RedHi, Offset(w * 0.68f, w * 0.32f), Offset(w * (0.68f - 0.36f * t), w * (0.32f + 0.36f * t)), 2.6.dp.toPx(), StrokeCap.Round)
+            }
+            Phase.CANCELLED -> {
+                drawCircle(C.Dim.copy(alpha = 0.2f), w / 2f)
+                val t = draw.value
+                drawLine(C.Dim, Offset(w * 0.3f, w * 0.5f), Offset(w * (0.3f + 0.4f * t), w * 0.5f), 2.6.dp.toPx(), StrokeCap.Round)
             }
             Phase.IDLE -> Unit
         }
