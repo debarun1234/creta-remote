@@ -142,7 +142,7 @@ object TileCache {
                     .header("User-Agent", "CretaRemote/1.0 (personal app)")
                     .build()
                 client(ctx).newCall(req).execute().use { r ->
-                    val bmp = if (r.isSuccessful) BitmapFactory.decodeStream(r.body.byteStream()) else null
+                    val bmp = if (r.isSuccessful) r.body?.byteStream()?.let { BitmapFactory.decodeStream(it) } else null
                     if (bmp == null) {
                         failedAt[k] = System.currentTimeMillis()
                         false
