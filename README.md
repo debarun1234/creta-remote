@@ -34,7 +34,7 @@ Password, PIN and tokens are encrypted with an Android Keystore key and only eve
 
 ## Speed
 
-Commands travel phone -> Hyundai cloud -> the car's modem, so the last leg (waking the modem and the car acting) is Hyundai's and can't be skipped. The app removes everything else: session and control token are pre-fetched on launch, the command goes out on a warm connection, and the result is polled every second with a live timer. **Settings -> Quick Settings tiles**: add "Lock Creta" / "Unlock Creta" from the notification shade's edit menu to control the car without opening the app (unlock asks for the phone's lock screen first).
+Commands travel phone -> Hyundai cloud -> the car's modem, so the last leg (waking the modem and the car acting) is Hyundai's and can't be skipped. The app removes everything else: session and control token are pre-fetched on launch, the command goes out on a warm connection, and the result is polled every second with a live timer. **Quick Settings tiles**: add "Lock Creta" / "Unlock Creta" from the notification shade's edit menu to control the car without opening the app (unlock asks for the phone's lock screen first).
 
 ## Install on your phone
 
