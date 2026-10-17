@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -42,7 +43,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.imageResource
 import com.debarun.cretaremote.R
 import com.debarun.cretaremote.bluelink.CarState
 import kotlin.math.PI
@@ -144,7 +145,7 @@ private fun PhotoCar(
             },
         ) {
             Image(
-                painterResource(res), description,
+                ImageBitmap.imageResource(res), description,
                 Modifier.fillMaxWidth(widthFrac).aspectRatio(aspect).align(Alignment.Center)
                     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                     .drawWithContent {
@@ -249,7 +250,7 @@ fun TopCar(modifier: Modifier = Modifier, car: CarState?, engineOn: Boolean, lig
 
     Box(modifier.fillMaxWidth().aspectRatio(TOP_ASPECT / (TOP_WIDTH * 1.12f))) {
         Image(
-            painterResource(R.drawable.creta_top_vehicle_report), "Your Creta from above",
+            ImageBitmap.imageResource(R.drawable.creta_top_vehicle_report), "Your Creta from above",
             Modifier.fillMaxWidth(TOP_WIDTH).aspectRatio(TOP_ASPECT).align(Alignment.Center)
                 .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                 .drawWithContent {
