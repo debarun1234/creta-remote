@@ -80,6 +80,9 @@ fun DayRow.entries(): List<TripEntry> = try {
             if (o.has("m")) o.optInt("m") else null,
             if (o.has("a")) o.optDouble("a") else null,
             if (o.has("x")) o.optDouble("x") else null,
+            endHhmmss = if (o.has("e")) o.optString("e") else null,
+            idleMin = if (o.has("i")) o.optInt("i") else null,
+            raw = if (o.has("r")) o.optString("r") else null,
         )
     }
 } catch (e: Exception) {
@@ -427,7 +430,7 @@ class Repository(private val ctx: Context) {
                     val day = o.optString("tripDayInMonth")
                     async {
                         val have = cached.firstOrNull { it.day == day }
-                        if (day.isEmpty() || (have != null && day < todayStr && have.fetched > 0)) return@async
+                        if (day.isEmpty() || (have != null && day < todayStr && have.fetched > 0 && (have.count == 0 || have.trips.contains("\"r\":")))) return@async
                         sem.withPermit {
                             val d = api { s -> client.tripDay(s, ensureVehicle(s), day) } ?: return@withPermit
                             store.upsertDay(parseDay(day, d, o.optInt("tripCntDay")))
@@ -462,13 +465,19 @@ class Repository(private val ctx: Context) {
         val tl = d.optJSONArray("tripList") ?: JSONArray()
         for (i in 0 until tl.length()) {
             val t = tl.getJSONObject(i)
+            // Bluelink field names vary by modem generation, so each value is looked up under every name seen so far.
+            fun num(vararg keys: String): Double? = keys.firstNotNullOfOrNull { k -> if (t.has(k) && !t.isNull(k)) t.optString(k).toDoubleOrNull() else null }
+            fun txt(vararg keys: String): String? = keys.firstNotNullOfOrNull { k -> t.optString(k, "").takeIf { it.isNotEmpty() && it != "null" } }
             trips.put(
                 JSONObject().apply {
-                    put("t", t.optString("tripTime", t.optString("tripStartTime", "")).takeLast(6))
-                    if (t.has("tripDist")) put("d", t.optDouble("tripDist"))
-                    if (t.has("tripDrvTime")) put("m", t.optInt("tripDrvTime"))
-                    if (t.has("tripAvgSpeed")) put("a", t.optDouble("tripAvgSpeed"))
-                    if (t.has("tripMaxSpeed")) put("x", t.optDouble("tripMaxSpeed"))
+                    put("t", (txt("tripTime", "tripStartTime", "startTime", "tripStart") ?: "").takeLast(6))
+                    txt("tripEndTime", "endTime", "tripEnd")?.let { put("e", it.takeLast(6)) }
+                    num("tripDist", "tripDistance", "distance", "dist", "mileage", "drivingDistance")?.let { put("d", it) }
+                    num("tripDrvTime", "drvTime", "driveTime", "drivingTime", "tripDuration", "duration")?.let { put("m", it.toInt()) }
+                    num("tripIdleTime", "idleTime")?.let { put("i", it.toInt()) }
+                    num("tripAvgSpeed", "avgSpeed", "averageSpeed")?.let { put("a", it) }
+                    num("tripMaxSpeed", "maxSpeed")?.let { put("x", it) }
+                    put("r", t.toString())
                 },
             )
         }

@@ -65,7 +65,17 @@ data class TripSummary(
     val maxKmh: Double,
 )
 
-data class TripEntry(val startHhmmss: String, val distKm: Double?, val driveMin: Int?, val avgKmh: Double?, val maxKmh: Double?)
+data class TripEntry(
+    val startHhmmss: String,
+    val distKm: Double?,
+    val driveMin: Int?,
+    val avgKmh: Double?,
+    val maxKmh: Double?,
+    val endHhmmss: String? = null,
+    val idleMin: Int? = null,
+    /** The trip exactly as Bluelink sent it, so the UI can show which fields the car really reports. */
+    val raw: String? = null,
+)
 
 data class TripDay(val day: String, val count: Int, val summary: TripSummary?, val trips: List<TripEntry>)
 
