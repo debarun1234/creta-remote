@@ -49,6 +49,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
@@ -100,13 +102,22 @@ import kotlin.math.sin
 import kotlin.math.sinh
 
 /*
- * A small slippy map drawn straight onto a Compose canvas: dark CARTO basemap tiles (OpenStreetMap data) fetched
+ * A small slippy map drawn straight onto a Compose canvas: OpenStreetMap tiles (recoloured dark, no API key) fetched
  * over OkHttp with a disk cache, pinch / drag / double-finger zoom, a fly-in when the screen opens, the
  * parking trail with a flowing dash, and the car's own top-down photo as the marker.
- * Map data (c) OpenStreetMap contributors, tiles (c) CARTO - the attribution is drawn on the map.
+ * Map data (c) OpenStreetMap contributors - the attribution is drawn on the map.
  */
 
 // ------------------------------------------------------------------------------------------ tiles
+
+/** OpenStreetMap tiles are light; this inverts them to a dark, slightly cool grey so the map suits the app. */
+private val DarkMap: ColorFilter = run {
+    fun row(tint: Float) = floatArrayOf(-0.85f * 0.299f * tint, -0.85f * 0.587f * tint, -0.85f * 0.114f * tint, 0f, 0.8875f * 255f * tint)
+    val r = row(0.95f)
+    val g = row(1.0f)
+    val b = row(1.12f)
+    ColorFilter.colorMatrix(ColorMatrix(r + g + b + floatArrayOf(0f, 0f, 0f, 1f, 0f)))
+}
 
 object TileCache {
     private val mem = object : LruCache<String, ImageBitmap>(64 * 1024 * 1024) {
@@ -136,10 +147,9 @@ object TileCache {
         if (inflight.putIfAbsent(k, true) != null) return false
         return try {
             withContext(Dispatchers.IO) {
-                val sub = "abcd"[(x + y) and 3]
                 val req = Request.Builder()
-                    .url("https://$sub.basemaps.cartocdn.com/dark_all/$z/$x/$y@2x.png")
-                    .header("User-Agent", "CretaRemote/1.0 (personal app)")
+                    .url("https://tile.openstreetmap.org/$z/$x/$y.png")
+                    .header("User-Agent", "CretaRemote/1.0 (personal Android app)")
                     .build()
                 client(ctx).newCall(req).execute().use { r ->
                     val bmp = if (r.isSuccessful) r.body?.byteStream()?.let { BitmapFactory.decodeStream(it) } else null
@@ -323,7 +333,7 @@ fun CarMap(
                 val dstSize = IntSize((left + v.tilePx).roundToInt() - l, (top + v.tilePx).roundToInt() - t)
                 val img = TileCache.peek(v.z, xw, y)
                 if (img != null) {
-                    drawImage(img, IntOffset.Zero, IntSize(img.width, img.height), IntOffset(l, t), dstSize, filterQuality = FilterQuality.Medium)
+                    drawImage(img, IntOffset.Zero, IntSize(img.width, img.height), IntOffset(l, t), dstSize, filterQuality = FilterQuality.Medium, colorFilter = DarkMap)
                 } else {
                     var k = 1
                     while (k <= 3 && v.z - k >= 0) {
@@ -333,7 +343,7 @@ fun CarMap(
                             val sh = a.height shr k
                             val sx = (xw - ((xw shr k) shl k)) * sw
                             val sy = (y - ((y shr k) shl k)) * sh
-                            drawImage(a, IntOffset(sx, sy), IntSize(sw, sh), IntOffset(l, t), dstSize, filterQuality = FilterQuality.Medium)
+                            drawImage(a, IntOffset(sx, sy), IntSize(sw, sh), IntOffset(l, t), dstSize, filterQuality = FilterQuality.Medium, colorFilter = DarkMap)
                             break
                         }
                         k++
@@ -410,7 +420,7 @@ fun CarMap(
             }
         }
         Txt(
-            "© OpenStreetMap contributors · © CARTO",
+            "© OpenStreetMap contributors",
             Modifier.align(Alignment.BottomEnd).padding(end = 10.dp, bottom = 6.dp),
             size = 9.sp, color = Color(0x99FFFFFF),
         )

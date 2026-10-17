@@ -10,7 +10,7 @@ Built with Kotlin and Jetpack Compose. Talks straight to Hyundai's Bluelink clou
 - **Telemetry**: liquid-fill fuel gauge, range, rolling odometer, 12V battery, doors, windows, hood, boot, tyre and fluid warnings on a live top-down car.
 - **Insights**: km/L from your real fill-ups, efficiency trend, refuel-by date and empty date prediction, 14-day distance bars, running cost, fill-up log.
 - **Trips**: month distance with a moving-vs-idle ring, weekday rhythm, heat calendar, and per-day 24-hour timeline with trip cards (distance, duration, speed meter) where Bluelink sends them.
-- **Places**: a real dark street map (OpenStreetMap data, CARTO tiles; internet needed) with a fly-in to the car, your Creta photo as the marker, the parking trail, scale bar, pinch zoom and a tappable parking history.
+- **Places**: a real dark street map (OpenStreetMap tiles recoloured dark, no API key; internet needed) with a fly-in to the car, your Creta photo as the marker, the parking trail, scale bar, pinch zoom and a tappable parking history.
 - **Fast by design**: opens on the last stored reading instantly, reads the cloud copy (no car wake), parallel requests, token and device id persisted so no login round trip on launch.
 - **Launcher shortcuts**: long-press the app icon for Lock or Unlock.
 
