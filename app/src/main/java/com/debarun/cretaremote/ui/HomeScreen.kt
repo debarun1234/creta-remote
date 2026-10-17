@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.Navigation
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Remove
@@ -74,7 +75,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.PI
 
 @Composable
-fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, onClimate: () -> Unit, onCar: () -> Unit) {
+fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, onClimate: () -> Unit, onCar: () -> Unit, onActivity: () -> Unit) {
     val car = d.car
     val ctx = LocalContext.current
     val now by produceState(System.currentTimeMillis()) { while (true) { delay(30_000); value = System.currentTimeMillis() } }
@@ -98,6 +99,13 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
                 Eyebrow("Hyundai")
                 Txt(d.settings.carTitle(), size = 28.sp, weight = FontWeight.Light, spacing = (-0.5).sp)
             }
+            Box {
+                RoundIcon(Icons.Rounded.Notifications) { onActivity() }
+                if (d.activityUnread > 0) {
+                    Box(Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 2.dp).size(11.dp).clip(CircleShape).background(C.Red).border(1.5.dp, C.Bg, CircleShape))
+                }
+            }
+            Spacer(Modifier.width(8.dp))
             RoundIcon(Icons.Rounded.Refresh, spinning = d.refreshing) { vm.refresh(false) }
             Spacer(Modifier.width(8.dp))
             RoundIcon(Icons.Rounded.Bolt, tint = C.Amber) { vm.refresh(true) }

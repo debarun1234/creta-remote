@@ -71,6 +71,8 @@ data class AppData(
     val cmd: CmdUi = CmdUi(),
     val settings: Settings = Settings(),
     val services: List<ServiceLog> = emptyList(),
+    val activity: List<Activity> = emptyList(),
+    val activityUnread: Int = 0,
 )
 
 fun DayRow.entries(): List<TripEntry> = try {
@@ -135,6 +137,8 @@ class Repository(private val ctx: Context) {
                     insights = insights,
                     places = store.places(),
                     services = loadServices(),
+                    activity = loadActivity(),
+                    activityUnread = loadActivity().count { a -> a.ts > activitySeen },
                 )
             }
         }
@@ -517,6 +521,32 @@ class Repository(private val ctx: Context) {
         }
     }
 
+    // ------------------------------------------------------------------ activity log
+
+    private var activitySeen: Long = 0L
+
+    private fun loadActivity(): List<Activity> {
+        if (activitySeen == 0L) activitySeen = store.kvGet("activity_seen")?.toLongOrNull() ?: 0L
+        return ActivityLog.decode(store.kvGet("activity"))
+    }
+
+    private fun logActivity(a: Activity) {
+        val list = (listOf(a) + _data.value.activity).take(ActivityLog.MAX)
+        store.kvPut("activity", ActivityLog.encode(list))
+        _data.update { it.copy(activity = list, activityUnread = list.count { x -> x.ts > activitySeen }) }
+    }
+
+    fun markActivitySeen() {
+        activitySeen = System.currentTimeMillis()
+        store.kvPut("activity_seen", activitySeen.toString())
+        _data.update { it.copy(activityUnread = 0) }
+    }
+
+    fun clearActivity() {
+        store.kvPut("activity", "[]")
+        _data.update { it.copy(activity = emptyList(), activityUnread = 0) }
+    }
+
     @Volatile private var cmdJob: Job? = null
     @Volatile private var cancelRequested = false
 
@@ -536,6 +566,11 @@ class Repository(private val ctx: Context) {
         cmdJob = currentCoroutineContext()[Job]
         cancelRequested = false
         var sent = false
+        val t0 = System.currentTimeMillis()
+        var sendMs: Long? = null
+        fun log(outcome: Outcome, msg: String) = logActivity(
+            Activity(t0, cmd, outcome, msg, sendMs, System.currentTimeMillis() - t0, if (cmd == Cmd.HORN) client.lastRoute else null),
+        )
         setCmd(cmd, Phase.SENDING, "Sending to car…")
         try {
             val pin = vault.get("pin").orEmpty()
@@ -554,6 +589,7 @@ class Repository(private val ctx: Context) {
             }
             val v = vehicleUsed ?: return
             sent = true
+            sendMs = System.currentTimeMillis() - t0
             setCmd(cmd, Phase.WAITING, "Waiting for the car…")
             var result = ActionResult.PENDING
             val started = System.currentTimeMillis()
@@ -561,7 +597,7 @@ class Repository(private val ctx: Context) {
             var polls = 0
             while (System.currentTimeMillis() < deadline) {
                 // poll every second for the first 12 s (most commands finish there), then ease off to stay clear of Bluelink's rate limit
-                delay(if (polls++ < 12) 1_000L else 2_000L)
+                delay(when { polls == 0 -> 700L; polls < 12 -> 1_000L; else -> 2_000L }); polls++
                 val secs = (System.currentTimeMillis() - started) / 1000
                 setCmd(cmd, Phase.WAITING, if (secs < 3) "Waiting for the car..." else "Waiting for the car... ${secs}s")
                 result = try {
@@ -579,21 +615,31 @@ class Repository(private val ctx: Context) {
                         _data.update { it.copy(car = it.car?.copy(locked = locked)) }
                     }
                     setCmd(cmd, Phase.OK, doneText(cmd))
+                    log(Outcome.SUCCESS, doneText(cmd))
                     scope.launch { delay(4_000); refresh(live = false) }
                 }
-                ActionResult.FAILED -> setCmd(cmd, Phase.FAIL, "The car rejected the command.")
-                ActionResult.TIMEOUT -> setCmd(cmd, Phase.FAIL, "The car did not respond. Is it in network coverage?")
-                else -> setCmd(cmd, Phase.OK, "Sent. The car hasn't confirmed yet.")
+                ActionResult.FAILED -> {
+                    setCmd(cmd, Phase.FAIL, "The car rejected the command.")
+                    log(Outcome.FAILED, "The car rejected the command.")
+                }
+                ActionResult.TIMEOUT -> {
+                    setCmd(cmd, Phase.FAIL, "The car did not respond. Is it in network coverage?")
+                    log(Outcome.FAILED, "The car did not respond. Is it in network coverage?")
+                }
+                else -> {
+                    setCmd(cmd, Phase.OK, "Sent. The car hasn't confirmed yet.")
+                    log(Outcome.UNCONFIRMED, "Sent, but the car did not confirm within a minute. It may not have acted.")
+                }
             }
         } catch (e: Exception) {
             if (cancelRequested || e is CancellationException) {
-                setCmd(
-                    cmd, Phase.CANCELLED,
-                    if (sent) "Stopped waiting. The car may still carry the command out."
-                    else "Cancelled. If the request had already left your phone, the car may still act on it.",
-                )
+                val m = if (sent) "Stopped waiting. The car may still carry the command out."
+                else "Cancelled. If the request had already left your phone, the car may still act on it."
+                setCmd(cmd, Phase.CANCELLED, m)
+                log(Outcome.CANCELLED, m)
             } else {
                 setCmd(cmd, Phase.FAIL, friendly(e))
+                log(Outcome.FAILED, friendly(e))
             }
         } finally {
             cmdJob = null

@@ -241,11 +241,45 @@ class BluelinkClient {
         exec(req).optString("msgId")
     }
 
-    /** Horn + hazard lights ("find my car"). Endpoint availability depends on the car's modem generation. */
+    /** The route that carried the last horn command (for the activity log). */
+    @Volatile var lastRoute: String? = null
+
+    /**
+     * Horn + hazard lights ("find my car"). The endpoint differs by modem generation and is not documented, so the
+     * routes that fit this car are tried in order; a route the server rejects costs one quick round trip, the first
+     * one that returns a message id wins.
+     */
     suspend fun hornAndLights(s: Session, v: Vehicle): String = withContext(Dispatchers.IO) {
-        val p = JSONObject().put("command", "on")
-        val req = Request.Builder().url("${SPA2}vehicles/${v.id}/ccs2/control/hornlight").withControl(s, v.ccs2).post(p.toString().toByteArray().toRequestBody(JSON)).build()
-        exec(req).optString("msgId")
+        val onBody = JSONObject().put("command", "on").toString()
+        val startBody = JSONObject().put("action", "start").put("deviceId", s.deviceId).toString()
+        fun post(url: String, body: String, control: Boolean): () -> Request = {
+            val b = Request.Builder().url(url)
+            (if (control) b.withControl(s, v.ccs2) else b.withAuth(s, v.ccs2)).post(body.toByteArray().toRequestBody(JSON)).build()
+        }
+        val routes = mutableListOf<Pair<String, () -> Request>>()
+        if (v.ccs2 != 0) {
+            routes += "ccs2 hornlight" to post("${SPA2}vehicles/${v.id}/ccs2/control/hornlight", onBody, true)
+            routes += "ccs2 light" to post("${SPA2}vehicles/${v.id}/ccs2/control/light", onBody, true)
+        } else {
+            routes += "light" to post("${SPA}vehicles/${v.id}/control/light", startBody, false)
+            routes += "light (PIN)" to post("${SPA}vehicles/${v.id}/control/light", startBody, true)
+            routes += "light v2" to post("${SPA2}vehicles/${v.id}/control/light", startBody, true)
+            routes += "ccs2 hornlight" to post("${SPA2}vehicles/${v.id}/ccs2/control/hornlight", onBody, true)
+        }
+        var last: BluelinkException? = null
+        for ((label, build) in routes) {
+            try {
+                val id = exec(build()).optString("msgId")
+                if (id.isNotEmpty()) {
+                    lastRoute = label
+                    return@withContext id
+                }
+            } catch (e: BluelinkException) {
+                if (e.auth || e.deviceId) throw e
+                last = e
+            }
+        }
+        throw last ?: BluelinkException("The car did not accept the horn command.")
     }
 
     suspend fun lightsOnly(s: Session, v: Vehicle): String = withContext(Dispatchers.IO) {

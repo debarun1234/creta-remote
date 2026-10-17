@@ -42,6 +42,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -107,10 +109,14 @@ private fun Shell(
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var climate by remember { mutableStateOf(false) }
     var carSheet by remember { mutableStateOf(false) }
+    var activity by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
     BackHandler(carSheet) { carSheet = false }
+    BackHandler(activity) { activity = false }
     var lockFlash by remember { mutableIntStateOf(0) }
 
     fun act(cmd: Cmd) {
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         val gated = data.settings.confirmBiometric && (cmd == Cmd.UNLOCK || cmd == Cmd.START || cmd == Cmd.STOP)
         val title = when (cmd) {
             Cmd.UNLOCK -> "Unlock your Creta"
@@ -142,7 +148,7 @@ private fun Shell(
             label = "tabs",
         ) { t ->
             when (Tab.entries[t]) {
-                Tab.HOME -> HomeScreen(data, vm, lockFlash, onAct = ::act, onClimate = { climate = true }, onCar = { carSheet = true })
+                Tab.HOME -> HomeScreen(data, vm, lockFlash, onAct = ::act, onClimate = { climate = true }, onCar = { carSheet = true }, onActivity = { activity = true })
                 Tab.INSIGHTS -> InsightsScreen(data)
                 Tab.TRIPS -> TripsScreen(data, vm)
                 Tab.PLACES -> PlacesScreen(data)
@@ -168,6 +174,20 @@ private fun Shell(
                 Modifier.fillMaxSize().background(Color(0xAA000000))
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { carSheet = false },
             )
+        }
+        AnimatedVisibility(activity, enter = fadeIn(tween(200)), exit = fadeOut(tween(200))) {
+            Box(
+                Modifier.fillMaxSize().background(Color(0xAA000000))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { activity = false },
+            )
+        }
+        AnimatedVisibility(
+            activity,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(tween(420, easing = FastOutSlowInEasing)) { it } + fadeIn(),
+            exit = slideOutVertically(tween(280)) { it } + fadeOut(),
+        ) {
+            ActivitySheet(data, vm, onClose = { activity = false })
         }
         AnimatedVisibility(
             carSheet,
