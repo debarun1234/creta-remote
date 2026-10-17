@@ -58,6 +58,9 @@ private object SideP {
     val fog = parsePath(CarPaths.Side.FOG)
     val grille = parsePath(CarPaths.Side.GRILLE)
     val cladding = parsePath(CarPaths.Side.CLADDING)
+    val skidF = parsePath(CarPaths.Side.SKIDF)
+    val skidR = parsePath(CarPaths.Side.SKIDR)
+    val spoiler = parsePath(CarPaths.Side.SPOILER)
     val archF = parsePath(CarPaths.Side.ARCHF)
     val archR = parsePath(CarPaths.Side.ARCHR)
     val spoke = parsePath(CarPaths.Side.SPOKES)
@@ -79,7 +82,9 @@ private object TopP {
     val tyre = parsePath(CarPaths.Top.TYRE)
 }
 
-private val Paint = listOf(Color(0xFFFF4A52), Color(0xFFD4141F), Color(0xFF8E0A14), Color(0xFF4A050B))
+/** Mulberry red metallic. */
+private val Paint = listOf(Color(0xFFE05A78), Color(0xFFB02A4A), Color(0xFF761432), Color(0xFF3D0719))
+private val Glow = Color(0xFFD42A55)
 private val GlassBrush = Brush.linearGradient(listOf(Color(0xFF2C3A4A), Color(0xFF0D141C), Color(0xFF1C2733)), Offset(120f, 50f), Offset(520f, 120f))
 private val RimBrush = Brush.linearGradient(listOf(Color(0xFFE6E9EE), Color(0xFF6B7380)), Offset(-35f, -35f), Offset(35f, 35f))
 private val DriveInEase = CubicBezierEasing(0.12f, 0.8f, 0.2f, 1f)
@@ -98,7 +103,7 @@ private fun DrawScope.wheel(cx: Float, cy: Float, rot: Float) {
         }
         drawCircle(RimBrush, 34f, Offset.Zero, style = Stroke(3f))
         drawCircle(Color(0xFF2A2A31), 9f, Offset.Zero)
-        drawCircle(Color(0xFFE3192D), 5f, Offset.Zero)
+        drawCircle(Color(0xFFB02A4A), 5f, Offset.Zero)
     }
 }
 
@@ -139,7 +144,7 @@ fun SideCar(
 
         // backdrop glow
         drawCircle(
-            Brush.radialGradient(listOf(Color(0x59FF2433), Color(0x00FF2433)), center = Offset(size.width * 0.5f, h * 0.6f), radius = size.width * 0.55f),
+            Brush.radialGradient(listOf(Color(0x59D42A55), Color(0x00D42A55)), center = Offset(size.width * 0.5f, h * 0.6f), radius = size.width * 0.55f),
             radius = size.width * 0.55f,
             center = Offset(size.width * 0.5f, h * 0.6f),
         )
@@ -149,13 +154,13 @@ fun SideCar(
             val ringDash = PathEffect.dashPathEffect(floatArrayOf(18f, 14f), ring * 32f)
             withTransform({ scale(1f, 0.085f, Offset(400f, 268f)) }) {
                 drawCircle(Brush.radialGradient(listOf(Color(0xE6000000), Color(0x00000000)), Offset(390f, 268f), 345f), 345f, Offset(390f, 268f))
-                drawCircle(Color(0x66FF2433), 360f, Offset(400f, 268f), style = Stroke(9f, pathEffect = ringDash))
-                drawCircle(Color(0x33FF2433), 395f, Offset(400f, 268f), style = Stroke(6f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 22f), -ring * 56f)))
+                drawCircle(Color(0x66D42A55), 360f, Offset(400f, 268f), style = Stroke(9f, pathEffect = ringDash))
+                drawCircle(Color(0x33D42A55), 395f, Offset(400f, 268f), style = Stroke(6f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 22f), -ring * 56f)))
             }
             // lock / unlock pulse ring
             if (flashAnim.value < 1f) {
                 val t = flashAnim.value
-                val c = if (locked == false) Color(0xFF3DD6F5) else Color(0xFFFF4A52)
+                val c = if (locked == false) Color(0xFF3DD6F5) else Color(0xFFE05A78)
                 withTransform({ scale(1f, 0.085f, Offset(400f, 268f)) }) {
                     drawCircle(c.copy(alpha = (1f - t) * 0.9f), 120f + 300f * t, Offset(400f, 268f), style = Stroke(12f * (1f - t) + 2f))
                 }
@@ -171,15 +176,17 @@ fun SideCar(
                 val beamA = maxOf(beam, if (blink) 1f else 0f)
                 if (beamA > 0.01f) {
                     val beamPath = Path().apply {
-                        moveTo(690f, 160f); lineTo(1500f, 60f); lineTo(1500f, 330f); lineTo(690f, 186f); close()
+                        moveTo(706f, 142f); lineTo(1500f, 40f); lineTo(1500f, 330f); lineTo(706f, 168f); close()
                     }
-                    drawPath(beamPath, Brush.horizontalGradient(listOf(Color(0xB3EAF4FF), Color(0x00EAF4FF)), 690f, 1250f), alpha = 0.55f * beamA)
+                    drawPath(beamPath, Brush.horizontalGradient(listOf(Color(0xB3EAF4FF), Color(0x00EAF4FF)), 706f, 1250f), alpha = 0.55f * beamA)
                 }
 
                 // paint
-                drawPath(SideP.body, Brush.verticalGradient(Paint, 46f, 243f))
+                drawPath(SideP.body, Brush.verticalGradient(Paint, 20f, 243f))
                 clipPath(SideP.body) {
                     drawPath(SideP.cladding, Color(0xFF16161B), alpha = 0.92f)
+                    drawPath(SideP.skidF, Color(0xFFAEB4BE), alpha = 0.85f)
+                    drawPath(SideP.skidR, Color(0xFFAEB4BE), alpha = 0.85f)
                     drawPath(SideP.crease, Color.Black, alpha = 0.25f, style = Stroke(3f))
                     drawPath(SideP.belt, Color.White, alpha = 0.28f, style = Stroke(2f))
                     // light sweep
@@ -192,6 +199,7 @@ fun SideCar(
                         topLeft = Offset(0f, 0f), size = Size(800f, 280f),
                     )
                 }
+                drawPath(SideP.spoiler, Color(0xFF0C0C10))
                 drawPath(SideP.rails, Color(0xFFAEB4BE), style = Stroke(3f, cap = StrokeCap.Round))
                 drawPath(SideP.railPosts, Color(0xFFAEB4BE), style = Stroke(3f))
                 drawPath(SideP.glass, GlassBrush)
@@ -204,18 +212,20 @@ fun SideCar(
                 drawPath(SideP.doorLines, if (doorOpen) Color(0xFFFFB020) else Color.Black, alpha = if (doorOpen) 0.95f else 0.55f, style = Stroke(if (doorOpen) 2.6f else 1.6f))
                 drawPath(SideP.handleR, Color(0xFF0C0C0F), alpha = 0.7f)
                 drawPath(SideP.handleF, Color(0xFF0C0C0F), alpha = 0.7f)
-                drawPath(SideP.mirror, Color(0xFFB5121C))
+                drawPath(SideP.mirror, Color(0xFF8F1B35))
                 drawPath(SideP.grille, Color(0xFF101014))
                 drawPath(SideP.lamp, Color(0xFFF4F8FF), alpha = 0.55f + 0.45f * beamA)
                 drawPath(SideP.drl, Color(0xFFE8F4FF), alpha = 0.65f + 0.35f * beamA, style = Stroke(5f, cap = StrokeCap.Round))
                 drawPath(SideP.tail, Color(0xFFFF2A3A), alpha = if (engineOn || blink) 1f else 0.72f)
                 drawPath(SideP.fog, Color(0xFFCFD8E6))
-                drawPath(SideP.archF, Color(0xFF08080A), style = Stroke(6f))
-                drawPath(SideP.archR, Color(0xFF08080A), style = Stroke(6f))
+                drawPath(SideP.archF, Color(0xFF16161B), style = Stroke(14f))
+                drawPath(SideP.archR, Color(0xFF16161B), style = Stroke(14f))
+                drawPath(SideP.archF, Color(0xFF08080A), style = Stroke(5f))
+                drawPath(SideP.archR, Color(0xFF08080A), style = Stroke(5f))
                 // hazard blink glow
                 if (blink) {
-                    drawCircle(Brush.radialGradient(listOf(Color(0xCCFFB020), Color(0x00FFB020)), Offset(700f, 160f), 60f), 60f, Offset(700f, 160f))
-                    drawCircle(Brush.radialGradient(listOf(Color(0xCCFFB020), Color(0x00FFB020)), Offset(84f, 118f), 60f), 60f, Offset(84f, 118f))
+                    drawCircle(Brush.radialGradient(listOf(Color(0xCCFFB020), Color(0x00FFB020)), Offset(706f, 150f), 60f), 60f, Offset(706f, 150f))
+                    drawCircle(Brush.radialGradient(listOf(Color(0xCCFFB020), Color(0x00FFB020)), Offset(82f, 116f), 60f), 60f, Offset(82f, 116f))
                 }
                 // wheels roll while driving in
                 val rot = enter.value * 825f - 825f
@@ -265,7 +275,7 @@ fun TopCar(modifier: Modifier = Modifier, car: CarState?, engineOn: Boolean, lig
             tyre(284f, 468f, true, tw?.rr == true || warnAll)
 
             // body
-            drawPath(TopP.body, Brush.horizontalGradient(listOf(Color(0xFF8E0A14), Color(0xFFFF4A52), Color(0xFFD4141F), Color(0xFFB5101A), Color(0xFF6B060D)), 58f, 262f))
+            drawPath(TopP.body, Brush.horizontalGradient(listOf(Color(0xFF5E0F25), Color(0xFFC23A58), Color(0xFFA3213F), Color(0xFF8A1A35), Color(0xFF3F0818)), 58f, 262f))
 
             // hood (lifts with a subtle shadow + amber outline when open)
             withTransform({ scale(1f, 1f + 0.03f * hoodA, Offset(160f, 196f)) }) {
@@ -274,13 +284,13 @@ fun TopCar(modifier: Modifier = Modifier, car: CarState?, engineOn: Boolean, lig
             }
             drawPath(TopP.windshield, GlassBrush)
             drawPath(TopP.rearGlass, GlassBrush)
-            drawPath(TopP.roof, Color(0xFFB5101A))
+            drawPath(TopP.roof, Color(0xFF8A1A35))
             drawPath(TopP.pano, GlassBrush)
             withTransform({ scale(1f, 1f + 0.03f * trunkA, Offset(160f, 490f)) }) {
                 drawPath(TopP.trunk, if (trunkA > 0.5f) Color(0xFFFFB020) else Color.Black, alpha = if (trunkA > 0.5f) 0.95f else 0.35f, style = Stroke(if (trunkA > 0.5f) 3f else 1.5f))
             }
-            drawPath(TopP.mirrorL, Color(0xFFA10F18))
-            drawPath(TopP.mirrorR, Color(0xFFA10F18))
+            drawPath(TopP.mirrorL, Color(0xFF7E1730))
+            drawPath(TopP.mirrorR, Color(0xFF7E1730))
 
             // doors swing open about their front hinge
             val doors = listOf(
@@ -297,7 +307,7 @@ fun TopCar(modifier: Modifier = Modifier, car: CarState?, engineOn: Boolean, lig
                         withTransform({ scale(if (right) 1f else -1f, 1f, Offset.Zero) }) {
                             // body-side door panel sits inside the body edge: x from 0 to -18 (mirrored for the left)
                             withTransform({ translate(-18f, 0f) }) {
-                                drawPath(TopP.door, if (open > 0.5f) Color(0xFFFFB020) else Color(0xFF7A0911), alpha = if (open > 0.5f) 0.9f else 0.55f)
+                                drawPath(TopP.door, if (open > 0.5f) Color(0xFFFFB020) else Color(0xFF5B1026), alpha = if (open > 0.5f) 0.9f else 0.55f)
                                 if (winOpen) drawRect(Color(0xFF3DD6F5), Offset(4f, 8f), Size(10f, 96f), alpha = 0.9f)
                             }
                         }

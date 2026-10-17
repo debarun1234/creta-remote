@@ -66,7 +66,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.debarun.cretaremote.AppViewModel
 import com.debarun.cretaremote.data.AppData
-import kotlinx.coroutines.delay
 import java.util.Calendar
 
 private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
@@ -80,26 +79,23 @@ private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_
 
 /**
  * Shown on every cold start (the caller keeps a rememberSaveable flag, so rotation does not replay it).
- * It stays up at least [MIN_MS] and until the first local load finishes; tap to skip; hard cap [MAX_MS].
+ * It never advances on its own: once the first local load finishes it waits for a tap.
  */
 @Composable
 fun WelcomeSplash(ready: Boolean, signedIn: Boolean, onDone: () -> Unit) {
-    var minElapsed by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { delay(MIN_MS); minElapsed = true }
-    LaunchedEffect(Unit) { delay(MAX_MS); onDone() }
-    LaunchedEffect(minElapsed, ready) { if (minElapsed && ready) onDone() }
 
     val rise = remember { Animatable(0f) }
     val bar = remember { Animatable(0f) }
     LaunchedEffect(Unit) { rise.animateTo(1f, tween(1300, delayMillis = 450, easing = FastOutSlowInEasing)) }
-    LaunchedEffect(Unit) { bar.animateTo(1f, tween(MIN_MS.toInt(), easing = LinearEasing)) }
+    LaunchedEffect(Unit) { bar.animateTo(1f, tween(BAR_MS, easing = LinearEasing)) }
 
     val inf = rememberInfiniteTransition(label = "wel")
     val glow by inf.animateFloat(0.55f, 1f, infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "glow")
+    val hint by inf.animateFloat(0.35f, 1f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "hint")
 
     Box(
         Modifier.fillMaxSize().background(C.Bg)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onDone() },
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = ready) { onDone() },
     ) {
         Canvas(Modifier.fillMaxSize()) {
             drawRect(
@@ -138,13 +134,16 @@ fun WelcomeSplash(ready: Boolean, signedIn: Boolean, onDone: () -> Unit) {
                     transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
                 }.background(Brush.horizontalGradient(listOf(C.RedDeep, C.RedHi))))
             }
-            Txt("Tap to continue", Modifier.padding(top = 18.dp).graphicsLayer { alpha = rise.value }, size = 11.sp, color = C.Faint)
+            Txt(
+                "Tap to continue",
+                Modifier.padding(top = 18.dp).graphicsLayer { alpha = if (ready) hint else 0f },
+                size = 13.sp, color = C.Dim, weight = FontWeight.Medium, spacing = 0.6.sp,
+            )
         }
     }
 }
 
-private const val MIN_MS = 2600L
-private const val MAX_MS = 6000L
+private const val BAR_MS = 2600
 
 // ------------------------------------------------------------------ first-run setup
 
