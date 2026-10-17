@@ -9,7 +9,16 @@ data class Settings(
     val climateTempC: Double = 22.0,
     val climateMinutes: Int = 10,
     val onboarded: Boolean = false,
+    val vin: String = "",
+    val powertrain: String = "",
+    val transmission: String = "",
+    val modelYear: Int = 2022,
+    val serviceKm: Int = 10_000,
+    val serviceMonths: Int = 12,
 )
+
+/** "2022 Creta SX" - the year comes from the VIN once one is entered, otherwise from the saved model year. */
+fun Settings.carTitle(): String = "${Vin.decode(vin).modelYear ?: modelYear} Creta SX"
 
 class SettingsStore(context: Context) {
     private val p = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -21,6 +30,12 @@ class SettingsStore(context: Context) {
         climateTempC = p.getFloat("temp", 22f).toDouble(),
         climateMinutes = p.getInt("mins", 10),
         onboarded = p.getBoolean("onboarded", false),
+        vin = p.getString("vin", "") ?: "",
+        powertrain = p.getString("pt", "") ?: "",
+        transmission = p.getString("tr", "") ?: "",
+        modelYear = p.getInt("year", 2022),
+        serviceKm = p.getInt("svcKm", 10_000),
+        serviceMonths = p.getInt("svcMonths", 12),
     )
 
     fun save(s: Settings) {
@@ -31,6 +46,12 @@ class SettingsStore(context: Context) {
             .putFloat("temp", s.climateTempC.toFloat())
             .putInt("mins", s.climateMinutes)
             .putBoolean("onboarded", s.onboarded)
+            .putString("vin", s.vin)
+            .putString("pt", s.powertrain)
+            .putString("tr", s.transmission)
+            .putInt("year", s.modelYear)
+            .putInt("svcKm", s.serviceKm)
+            .putInt("svcMonths", s.serviceMonths)
             .apply()
     }
 }

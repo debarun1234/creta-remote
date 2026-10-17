@@ -69,11 +69,12 @@ import com.debarun.cretaremote.bluelink.CarState
 import com.debarun.cretaremote.data.AppData
 import com.debarun.cretaremote.data.Cmd
 import com.debarun.cretaremote.data.Settings
+import com.debarun.cretaremote.data.carTitle
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 
 @Composable
-fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, onClimate: () -> Unit) {
+fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, onClimate: () -> Unit, onCar: () -> Unit) {
     val car = d.car
     val ctx = LocalContext.current
     val now by produceState(System.currentTimeMillis()) { while (true) { delay(30_000); value = System.currentTimeMillis() } }
@@ -94,8 +95,8 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
         // ------------------------------------------------------------- header
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Eyebrow(d.vehicle?.model?.ifBlank { null } ?: "Hyundai Creta")
-                Txt(d.vehicle?.name?.ifBlank { null } ?: "My Creta", size = 30.sp, weight = FontWeight.Light, spacing = (-0.5).sp)
+                Eyebrow("Hyundai")
+                Txt(d.settings.carTitle(), size = 28.sp, weight = FontWeight.Light, spacing = (-0.5).sp)
             }
             RoundIcon(Icons.Rounded.Refresh, spinning = d.refreshing) { vm.refresh(false) }
             Spacer(Modifier.width(8.dp))
@@ -117,7 +118,11 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
         }
 
         // ------------------------------------------------------------- hero
-        CarHero(car, flash, Modifier.fillMaxWidth())
+        CarHero(
+            car, flash,
+            Modifier.fillMaxWidth().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onCar() },
+        )
+        Txt("Tap the car for specifications and service", Modifier.fillMaxWidth(), size = 11.sp, color = C.Faint, align = TextAlign.Center)
 
         LockSlider(car?.locked, busy = lockBusy, onToggle = { onAct(if (car?.locked == false) Cmd.LOCK else Cmd.UNLOCK) })
 

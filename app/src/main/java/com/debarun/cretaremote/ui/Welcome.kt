@@ -15,6 +15,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -59,6 +60,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -84,6 +88,9 @@ private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_
 @Composable
 fun WelcomeSplash(ready: Boolean, signedIn: Boolean, onDone: () -> Unit) {
 
+    val ctx = LocalContext.current
+    // drop the official logo in app/src/main/res/drawable-nodpi/hyundai_logo.png (transparent, light-coloured) and it shows here
+    val logoRes = remember { ctx.resources.getIdentifier("hyundai_logo", "drawable", ctx.packageName) }
     val rise = remember { Animatable(0f) }
     val bar = remember { Animatable(0f) }
     LaunchedEffect(Unit) { rise.animateTo(1f, tween(1300, delayMillis = 450, easing = FastOutSlowInEasing)) }
@@ -116,6 +123,9 @@ fun WelcomeSplash(ready: Boolean, signedIn: Boolean, onDone: () -> Unit) {
                 Modifier.graphicsLayer { alpha = rise.value; translationY = (1f - rise.value) * 24.dp.toPx() },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                if (logoRes != 0) {
+                    Image(painterResource(logoRes), contentDescription = "Hyundai", modifier = Modifier.height(34.dp).padding(bottom = 14.dp), contentScale = ContentScale.Fit)
+                }
                 Eyebrow(greeting(), color = C.RedHi)
                 Txt("Creta Remote", Modifier.padding(top = 8.dp), size = 40.sp, weight = FontWeight.Light, spacing = (-1).sp)
                 Txt(

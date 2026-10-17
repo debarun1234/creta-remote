@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.debarun.cretaremote.data.Cmd
+import com.debarun.cretaremote.data.ServiceLog
 import com.debarun.cretaremote.data.Settings
 import kotlinx.coroutines.launch
 
@@ -21,5 +22,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun signOut() = repo.signOut()
     fun savePin(pin: String) = repo.savePin(pin)
     fun saveSettings(s: Settings) = repo.updateSettings(s)
+    fun addService(log: ServiceLog) { viewModelScope.launch { repo.addService(log) } }
+    fun deleteService(ts: Long) { viewModelScope.launch { repo.deleteService(ts) } }
     fun loadTrips(yyyymm: String) { viewModelScope.launch { repo.loadTrips(yyyymm) } }
 }

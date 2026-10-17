@@ -67,6 +67,7 @@ data class AppData(
     val tripsLoading: Boolean = false,
     val cmd: CmdUi = CmdUi(),
     val settings: Settings = Settings(),
+    val services: List<ServiceLog> = emptyList(),
 )
 
 fun DayRow.entries(): List<TripEntry> = try {
@@ -127,6 +128,7 @@ class Repository(private val ctx: Context) {
                     fetchedAt = fetched,
                     insights = insights,
                     places = store.places(),
+                    services = loadServices(),
                 )
             }
         }
@@ -134,6 +136,36 @@ class Repository(private val ctx: Context) {
             refresh(live = false)
             loadTrips(currentMonth())
         }
+    }
+
+    private fun loadServices(): List<ServiceLog> = runCatching {
+        val arr = JSONArray(store.kvGet("services") ?: "[]")
+        (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            ServiceLog(o.getLong("ts"), o.getDouble("km"), o.optString("note"), if (o.has("cost")) o.getDouble("cost") else null)
+        }.sortedByDescending { it.ts }
+    }.getOrDefault(emptyList())
+
+    private fun saveServices(list: List<ServiceLog>) {
+        val arr = JSONArray()
+        for (e in list) {
+            val o = JSONObject().put("ts", e.ts).put("km", e.km).put("note", e.note)
+            if (e.cost != null) o.put("cost", e.cost)
+            arr.put(o)
+        }
+        store.kvPut("services", arr.toString())
+    }
+
+    suspend fun addService(log: ServiceLog) = withContext(Dispatchers.IO) {
+        val list = (_data.value.services + log).sortedByDescending { it.ts }
+        saveServices(list)
+        _data.update { it.copy(services = list) }
+    }
+
+    suspend fun deleteService(ts: Long) = withContext(Dispatchers.IO) {
+        val list = _data.value.services.filter { it.ts != ts }
+        saveServices(list)
+        _data.update { it.copy(services = list) }
     }
 
     private fun loadVehicleFromStore() {

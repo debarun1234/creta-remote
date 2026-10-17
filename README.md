@@ -26,6 +26,12 @@ Built with Kotlin and Jetpack Compose. Talks straight to Hyundai's Bluelink clou
 
 Password, PIN and tokens are encrypted with an Android Keystore key and only ever sent to Hyundai. Unlock, start and stop can be gated behind fingerprint, face or phone PIN (Settings).
 
+## Car details, specs and service
+
+- **Settings -> My car**: enter your VIN (model year and maker are decoded locally and cross-checked against the VIN on your Bluelink account), choose engine and transmission, and set the service interval.
+- **Tap the car** on the home screen for specifications and a service log with a next-service countdown. Engine, transmission and body figures are Hyundai's published numbers for the 2022 Creta; service history is what you log yourself (Bluelink doesn't expose it).
+- **Welcome-screen logo**: save the official Hyundai logo (transparent PNG, light colour) as `app/src/main/res/drawable-nodpi/hyundai_logo.png`. Nothing is shown until the file exists. The logo is Hyundai's trademark, so it isn't bundled in this repo.
+
 ## Install on your phone
 
 1. Phone: **Settings → About phone**, tap *Build number* 7 times, then **Developer options → USB debugging** on.

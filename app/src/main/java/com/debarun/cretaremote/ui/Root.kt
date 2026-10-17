@@ -1,5 +1,6 @@
 package com.debarun.cretaremote.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -104,6 +105,8 @@ private fun Shell(
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var climate by remember { mutableStateOf(false) }
+    var carSheet by remember { mutableStateOf(false) }
+    BackHandler(carSheet) { carSheet = false }
     var lockFlash by remember { mutableIntStateOf(0) }
 
     fun act(cmd: Cmd) {
@@ -138,7 +141,7 @@ private fun Shell(
             label = "tabs",
         ) { t ->
             when (Tab.entries[t]) {
-                Tab.HOME -> HomeScreen(data, vm, lockFlash, onAct = ::act, onClimate = { climate = true })
+                Tab.HOME -> HomeScreen(data, vm, lockFlash, onAct = ::act, onClimate = { climate = true }, onCar = { carSheet = true })
                 Tab.INSIGHTS -> InsightsScreen(data)
                 Tab.TRIPS -> TripsScreen(data, vm)
                 Tab.PLACES -> PlacesScreen(data)
@@ -158,6 +161,20 @@ private fun Shell(
                 Modifier.fillMaxSize().background(Color(0xAA000000))
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { climate = false },
             )
+        }
+        AnimatedVisibility(carSheet, enter = fadeIn(tween(200)), exit = fadeOut(tween(200))) {
+            Box(
+                Modifier.fillMaxSize().background(Color(0xAA000000))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { carSheet = false },
+            )
+        }
+        AnimatedVisibility(
+            carSheet,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(tween(420, easing = FastOutSlowInEasing)) { it } + fadeIn(),
+            exit = slideOutVertically(tween(280)) { it } + fadeOut(),
+        ) {
+            CarSheet(data, vm, onClose = { carSheet = false }, onSettings = { carSheet = false; tab = Tab.SETTINGS.ordinal })
         }
         AnimatedVisibility(
             climate,
