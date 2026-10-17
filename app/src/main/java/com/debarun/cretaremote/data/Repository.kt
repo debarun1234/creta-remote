@@ -133,6 +133,7 @@ class Repository(private val ctx: Context) {
             }
         }
         if (hasCreds) {
+            scope.launch { warmUp() }
             refresh(live = false)
             loadTrips(currentMonth())
         }
@@ -486,6 +487,24 @@ class Repository(private val ctx: Context) {
 
     // ------------------------------------------------------------------ commands
 
+    /** Fire-and-forget entry point for Quick Settings tiles and other callers without a UI scope. */
+    fun runDetached(cmd: Cmd) { scope.launch { run(cmd) } }
+
+    /**
+     * Pre-pays the round trips a command would otherwise wait on: session, vehicle and (when a PIN is saved)
+     * the control token that engine stop and horn need. Called on app open so the first tap goes straight out.
+     */
+    suspend fun warmUp() {
+        val pin = vault.get("pin").orEmpty()
+        runCatching {
+            api { s ->
+                ensureVehicle(s)
+                if (pin.isNotEmpty()) saveSession(client.controlToken(s, pin))
+                Unit
+            }
+        }
+    }
+
     suspend fun run(cmd: Cmd) {
         if (_data.value.cmd.busy) return
         setCmd(cmd, Phase.SENDING, "Sending to car…")
@@ -507,9 +526,14 @@ class Repository(private val ctx: Context) {
             val v = vehicleUsed ?: return
             setCmd(cmd, Phase.WAITING, "Waiting for the car…")
             var result = ActionResult.PENDING
-            val deadline = System.currentTimeMillis() + 45_000L
+            val started = System.currentTimeMillis()
+            val deadline = started + 60_000L
+            var polls = 0
             while (System.currentTimeMillis() < deadline) {
-                delay(2_500)
+                // poll every second for the first 12 s (most commands finish there), then ease off to stay clear of Bluelink's rate limit
+                delay(if (polls++ < 12) 1_000L else 2_000L)
+                val secs = (System.currentTimeMillis() - started) / 1000
+                setCmd(cmd, Phase.WAITING, if (secs < 3) "Waiting for the car..." else "Waiting for the car... ${secs}s")
                 result = try {
                     api { s -> client.actionStatus(s, v, msgId) }
                 } catch (e: BluelinkException) {

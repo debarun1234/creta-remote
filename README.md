@@ -32,6 +32,10 @@ Password, PIN and tokens are encrypted with an Android Keystore key and only eve
 - **Tap the car** on the home screen for specifications and a service log with a next-service countdown. Engine, transmission and body figures are Hyundai's published numbers for the 2022 Creta; service history is what you log yourself (Bluelink doesn't expose it).
 - **Welcome-screen logo**: save the official Hyundai logo (transparent PNG, light colour) as `app/src/main/res/drawable-nodpi/hyundai_logo.png`. Nothing is shown until the file exists. The logo is Hyundai's trademark, so it isn't bundled in this repo.
 
+## Speed
+
+Commands travel phone -> Hyundai cloud -> the car's modem, so the last leg (waking the modem and the car acting) is Hyundai's and can't be skipped. The app removes everything else: session and control token are pre-fetched on launch, the command goes out on a warm connection, and the result is polled every second with a live timer. **Settings -> Quick Settings tiles**: add "Lock Creta" / "Unlock Creta" from the notification shade's edit menu to control the car without opening the app (unlock asks for the phone's lock screen first).
+
 ## Install on your phone
 
 1. Phone: **Settings → About phone**, tap *Build number* 7 times, then **Developer options → USB debugging** on.

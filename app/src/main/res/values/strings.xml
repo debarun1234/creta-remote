@@ -2,4 +2,6 @@
     <string name="app_name">Creta Remote</string>
     <string name="shortcut_lock">Lock car</string>
     <string name="shortcut_unlock">Unlock car</string>
+    <string name="tile_lock">Lock Creta</string>
+    <string name="tile_unlock">Unlock Creta</string>
 </resources>
