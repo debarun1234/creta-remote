@@ -241,51 +241,81 @@ class BluelinkClient {
         exec(req).optString("msgId")
     }
 
-    /** The route that carried the last horn command (for the activity log). */
+    /** The route that carried the last horn / lights / boot command (for the activity log). */
     @Volatile var lastRoute: String? = null
 
+    private fun post(s: Session, v: Vehicle, url: String, body: String, control: Boolean): () -> Request = {
+        val b = Request.Builder().url(url)
+        (if (control) b.withControl(s, v.ccs2) else b.withAuth(s, v.ccs2)).post(body.toByteArray().toRequestBody(JSON)).build()
+    }
+
     /**
-     * Horn + hazard lights ("find my car"). The endpoint differs by modem generation and is not documented, so the
-     * routes that fit this car are tried in order; a route the server rejects costs one quick round trip, the first
-     * one that returns a message id wins.
+     * These endpoints differ by modem generation and are not documented, so the routes that fit this car are tried in
+     * order. A route the server rejects costs one quick round trip; the first one that returns a message id wins and
+     * is remembered in [lastRoute].
      */
-    suspend fun hornAndLights(s: Session, v: Vehicle): String = withContext(Dispatchers.IO) {
-        val onBody = JSONObject().put("command", "on").toString()
-        val startBody = JSONObject().put("action", "start").put("deviceId", s.deviceId).toString()
-        fun post(url: String, body: String, control: Boolean): () -> Request = {
-            val b = Request.Builder().url(url)
-            (if (control) b.withControl(s, v.ccs2) else b.withAuth(s, v.ccs2)).post(body.toByteArray().toRequestBody(JSON)).build()
-        }
-        val routes = mutableListOf<Pair<String, () -> Request>>()
-        if (v.ccs2 != 0) {
-            routes += "ccs2 hornlight" to post("${SPA2}vehicles/${v.id}/ccs2/control/hornlight", onBody, true)
-            routes += "ccs2 light" to post("${SPA2}vehicles/${v.id}/ccs2/control/light", onBody, true)
-        } else {
-            routes += "light" to post("${SPA}vehicles/${v.id}/control/light", startBody, false)
-            routes += "light (PIN)" to post("${SPA}vehicles/${v.id}/control/light", startBody, true)
-            routes += "light v2" to post("${SPA2}vehicles/${v.id}/control/light", startBody, true)
-            routes += "ccs2 hornlight" to post("${SPA2}vehicles/${v.id}/ccs2/control/hornlight", onBody, true)
-        }
+    private fun tryRoutes(routes: List<Pair<String, () -> Request>>, failure: String): String {
         var last: BluelinkException? = null
         for ((label, build) in routes) {
             try {
                 val id = exec(build()).optString("msgId")
                 if (id.isNotEmpty()) {
                     lastRoute = label
-                    return@withContext id
+                    return id
                 }
             } catch (e: BluelinkException) {
                 if (e.auth || e.deviceId) throw e
                 last = e
             }
         }
-        throw last ?: BluelinkException("The car did not accept the horn command.")
+        throw last ?: BluelinkException(failure)
     }
 
-    suspend fun lightsOnly(s: Session, v: Vehicle): String = withContext(Dispatchers.IO) {
-        val p = JSONObject().put("command", "on")
-        val req = Request.Builder().url("${SPA2}vehicles/${v.id}/ccs2/control/light").withControl(s, v.ccs2).post(p.toString().toByteArray().toRequestBody(JSON)).build()
-        exec(req).optString("msgId")
+    /** Flash the lights only. Never sounds the horn. */
+    suspend fun lights(s: Session, v: Vehicle): String = withContext(Dispatchers.IO) {
+        val on = JSONObject().put("command", "on").toString()
+        val start = JSONObject().put("action", "start").put("deviceId", s.deviceId).toString()
+        val u1 = "${SPA}vehicles/${v.id}/control/light"
+        val u2 = "${SPA2}vehicles/${v.id}/control/light"
+        val c2 = "${SPA2}vehicles/${v.id}/ccs2/control/light"
+        tryRoutes(
+            if (v.ccs2 != 0) listOf("ccs2 light" to post(s, v, c2, on, true))
+            else listOf("light" to post(s, v, u1, start, false), "light (PIN)" to post(s, v, u1, start, true), "light v2" to post(s, v, u2, start, true)),
+            "The car did not accept the lights command.",
+        )
+    }
+
+    /** Horn and lights together ("find my car"). */
+    suspend fun hornAndLights(s: Session, v: Vehicle): String = withContext(Dispatchers.IO) {
+        val on = JSONObject().put("command", "on").toString()
+        val start = JSONObject().put("action", "start").put("deviceId", s.deviceId).toString()
+        val u1 = "${SPA}vehicles/${v.id}/control/hornlight"
+        val u2 = "${SPA2}vehicles/${v.id}/control/hornlight"
+        val c2 = "${SPA2}vehicles/${v.id}/ccs2/control/hornlight"
+        tryRoutes(
+            if (v.ccs2 != 0) listOf("ccs2 horn+light" to post(s, v, c2, on, true))
+            else listOf(
+                "horn+light" to post(s, v, u1, start, false),
+                "horn+light (PIN)" to post(s, v, u1, start, true),
+                "horn+light v2" to post(s, v, u2, start, true),
+                "ccs2 horn+light" to post(s, v, c2, on, true),
+            ),
+            "The car did not accept the horn command.",
+        )
+    }
+
+    /** Release the boot. Experimental: Hyundai does not document this and not every Creta supports it remotely. */
+    suspend fun boot(s: Session, v: Vehicle): String = withContext(Dispatchers.IO) {
+        val on = JSONObject().put("command", "open").toString()
+        val open = JSONObject().put("action", "open").put("deviceId", s.deviceId).toString()
+        val u1 = "${SPA}vehicles/${v.id}/control/trunk"
+        val u2 = "${SPA2}vehicles/${v.id}/control/trunk"
+        val c2 = "${SPA2}vehicles/${v.id}/ccs2/control/trunk"
+        tryRoutes(
+            if (v.ccs2 != 0) listOf("ccs2 trunk" to post(s, v, c2, on, true))
+            else listOf("trunk" to post(s, v, u1, open, false), "trunk (PIN)" to post(s, v, u1, open, true), "trunk v2" to post(s, v, u2, open, true)),
+            "This car did not accept a remote boot release.",
+        )
     }
 
     private fun Request.Builder.withControl(s: Session, ccs2: Int): Request.Builder {

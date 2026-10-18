@@ -20,4 +20,24 @@
             android:targetClass="com.debarun.cretaremote.MainActivity"
             android:targetPackage="com.debarun.cretaremote" />
     </shortcut>
+    <shortcut
+        android:shortcutId="lights"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_lights"
+        android:shortcutShortLabel="@string/shortcut_lights">
+        <intent
+            android:action="com.debarun.cretaremote.LIGHTS"
+            android:targetClass="com.debarun.cretaremote.MainActivity"
+            android:targetPackage="com.debarun.cretaremote" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="boot"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_boot"
+        android:shortcutShortLabel="@string/shortcut_boot">
+        <intent
+            android:action="com.debarun.cretaremote.BOOT"
+            android:targetClass="com.debarun.cretaremote.MainActivity"
+            android:targetPackage="com.debarun.cretaremote" />
+    </shortcut>
 </shortcuts>

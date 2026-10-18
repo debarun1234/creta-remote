@@ -42,6 +42,8 @@ enum class Cmd(val label: String) {
     START("Starting engine & climate"),
     STOP("Stopping engine"),
     HORN("Horn & lights"),
+    LIGHTS("Flashing lights"),
+    BOOT("Opening boot"),
 }
 
 enum class Phase { IDLE, SENDING, WAITING, OK, FAIL, CANCELLED }
@@ -607,11 +609,12 @@ class Repository(private val ctx: Context) {
         if (_data.value.cmd.busy) return
         cmdJob = currentCoroutineContext()[Job]
         cancelRequested = false
+        client.lastRoute = null
         var sent = false
         val t0 = System.currentTimeMillis()
         var sendMs: Long? = null
         fun log(outcome: Outcome, msg: String) {
-            logActivity(Activity(t0, cmd, outcome, msg, sendMs, System.currentTimeMillis() - t0, if (cmd == Cmd.HORN) client.lastRoute else null))
+            logActivity(Activity(t0, cmd, outcome, msg, sendMs, System.currentTimeMillis() - t0, if (cmd == Cmd.HORN || cmd == Cmd.LIGHTS || cmd == Cmd.BOOT) client.lastRoute else null))
             // the app is closed (Quick Settings tile, shortcut, or the user switched away): tell them how it ended
             if (!AppForeground.visible && _data.value.settings.notifyCommands) Notifier.command(ctx, cmd, outcome, msg)
         }
@@ -629,6 +632,8 @@ class Repository(private val ctx: Context) {
                     Cmd.START -> client.startEngine(s, v, st.climateTempC, st.climateMinutes, defrost = false, heating = false)
                     Cmd.STOP -> client.stopEngine(client.controlToken(s, pin).also { saveSession(it) }, v)
                     Cmd.HORN -> client.hornAndLights(client.controlToken(s, pin).also { saveSession(it) }, v)
+                    Cmd.LIGHTS -> client.lights(optionalControl(s, pin), v)
+                    Cmd.BOOT -> client.boot(optionalControl(s, pin), v)
                 }
             }
             val v = vehicleUsed ?: return
@@ -691,12 +696,24 @@ class Repository(private val ctx: Context) {
         scope.launch { delay(if (_data.value.cmd.phase == Phase.CANCELLED) 5_000 else 3_500); _data.update { if (it.cmd.busy) it else it.copy(cmd = CmdUi()) } }
     }
 
+    /** Adds the PIN-verified control token when there is one; routes that need it are skipped when there isn't. */
+    private suspend fun optionalControl(s: Session, pin: String): Session {
+        if (pin.isBlank()) return s
+        return try {
+            client.controlToken(s, pin).also { saveSession(it) }
+        } catch (e: BluelinkException) {
+            if (e.auth) throw e else s
+        }
+    }
+
     private fun doneText(c: Cmd) = when (c) {
         Cmd.LOCK -> "Locked"
         Cmd.UNLOCK -> "Unlocked"
         Cmd.START -> "Engine started"
         Cmd.STOP -> "Engine stopped"
         Cmd.HORN -> "Horn & lights on"
+        Cmd.LIGHTS -> "Lights flashed"
+        Cmd.BOOT -> "Boot released"
     }
 
     private fun setCmd(c: Cmd, p: Phase, m: String) = _data.update { it.copy(cmd = CmdUi(c, p, m)) }

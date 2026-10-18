@@ -4,4 +4,9 @@
     <string name="shortcut_unlock">Unlock car</string>
     <string name="tile_lock">Lock Creta</string>
     <string name="tile_unlock">Unlock Creta</string>
+    <string name="shortcut_lights">Flash lights</string>
+    <string name="shortcut_boot">Open boot</string>
+    <string name="tile_lights">Creta lights</string>
+    <string name="tile_boot">Open Creta boot</string>
+    <string name="widget_desc">Lock, lights, unlock and boot</string>
 </resources>

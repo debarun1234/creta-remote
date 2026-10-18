@@ -117,11 +117,12 @@ private fun Shell(
 
     fun act(cmd: Cmd) {
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        val gated = data.settings.confirmBiometric && (cmd == Cmd.UNLOCK || cmd == Cmd.START || cmd == Cmd.STOP)
+        val gated = data.settings.confirmBiometric && (cmd == Cmd.UNLOCK || cmd == Cmd.START || cmd == Cmd.STOP || cmd == Cmd.BOOT)
         val title = when (cmd) {
             Cmd.UNLOCK -> "Unlock your Creta"
             Cmd.START -> "Start your Creta"
             Cmd.STOP -> "Stop your Creta"
+            Cmd.BOOT -> "Open your Creta's boot"
             else -> "Confirm"
         }
         if (gated) confirm(title) { vm.run(cmd) } else vm.run(cmd)
@@ -133,6 +134,8 @@ private fun Shell(
         when (action) {
             "com.debarun.cretaremote.LOCK" -> act(Cmd.LOCK)
             "com.debarun.cretaremote.UNLOCK" -> act(Cmd.UNLOCK)
+            "com.debarun.cretaremote.LIGHTS" -> act(Cmd.LIGHTS)
+            "com.debarun.cretaremote.BOOT" -> act(Cmd.BOOT)
         }
         if (action != null) launchAction.value = null
     }

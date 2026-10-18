@@ -6,7 +6,7 @@ Built with Kotlin and Jetpack Compose. Talks straight to Hyundai's Bluelink clou
 ## What it does
 
 - **Garage**: your own mulberry Creta photos (home, welcome, vehicle report). The car drives in on launch, a light sheen sweeps the paint, lamps glow when the engine runs, and a pulse ring plus hazard blinks play on every lock or unlock. The top-down vehicle report highlights open doors, windows, hood, rear gate and low-pressure tyres live.
-- **Remote control**: slide-to-lock/unlock, climate and engine start (temperature and duration), horn and lights, navigate to the car. Each command shows live progress until the car confirms.
+- **Remote control**: slide-to-lock/unlock, climate and engine start (temperature and duration), lights only, horn + lights, boot release, navigate to the car. Quick Settings tiles, launcher shortcuts and a home-screen widget (Lock and Lights fire directly; Unlock and Boot go through the biometric check). Each command shows live progress until the car confirms.
 - **Telemetry**: liquid-fill fuel gauge, range, rolling odometer, 12V battery, doors, windows, hood, boot, tyre and fluid warnings on a live top-down car.
 - **Insights**: km/L from your real fill-ups, efficiency trend, refuel-by date and empty date prediction, 14-day distance bars, running cost, fill-up log.
 - **Trips**: month distance with a moving-vs-idle ring, weekday rhythm, heat calendar, and per-day 24-hour timeline with trip cards (distance, duration, speed meter) where Bluelink sends them.
@@ -19,7 +19,7 @@ Built with Kotlin and Jetpack Compose. Talks straight to Hyundai's Bluelink clou
 - It is **cloud remote control, not a digital key**. The car must have mobile coverage, and commands go phone, Hyundai cloud, car. You still need the physical key to drive. Whether remote engine start works depends on your variant.
 - Bluelink's API is **unofficial and undocumented**. This client follows the community-reverse-engineered [`hyundai_kia_connect_api`](https://github.com/Hyundai-Kia-Connect/hyundai_kia_connect_api) India implementation. Hyundai can change it at any time.
 - Bluelink reports where the car is **parked**, not a live GPS track. The Places trail is built from parking spots recorded while the app runs.
-- Horn and lights (`ccs2/control/hornlight`) and some trip fields are only confirmed for newer modems. If your car rejects a command the app shows Bluelink's reason.
+- Lights, horn+lights and boot release are undocumented endpoints; the app tries the routes that fit your modem in order, and the Activity log shows which one worked ("via ..."). Boot release may not be supported remotely on your car. Some trip fields are only confirmed for newer modems. If your car rejects a command the app shows Bluelink's reason.
 - Fuel economy and predictions are derived from your own history (the app records odometer and fuel about every 15 minutes in the background). Until enough history exists, the app says so instead of guessing.
 
 ## Security

@@ -35,12 +35,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Campaign
+import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Navigation
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Thermostat
+import androidx.compose.material.icons.rounded.Work
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -134,16 +136,22 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
 
         LockSlider(car?.locked, busy = lockBusy, onToggle = { onAct(if (car?.locked == false) Cmd.LOCK else Cmd.UNLOCK) })
 
-        // ------------------------------------------------------------- quick actions
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (car?.engineOn == true) {
-                ActionTile(Icons.Rounded.PowerSettingsNew, "Stop", Modifier.weight(1f), C.Amber, busy = d.cmd.busy && d.cmd.cmd == Cmd.STOP) { onAct(Cmd.STOP) }
-            } else {
-                ActionTile(Icons.Rounded.Thermostat, "Climate", Modifier.weight(1f), C.Cyan, busy = d.cmd.busy && d.cmd.cmd == Cmd.START) { onClimate() }
+        // ------------------------------------------------------------- controls
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (car?.engineOn == true) {
+                    ActionTile(Icons.Rounded.PowerSettingsNew, "Stop", Modifier.weight(1f), C.Amber, busy = d.cmd.busy && d.cmd.cmd == Cmd.STOP) { onAct(Cmd.STOP) }
+                } else {
+                    ActionTile(Icons.Rounded.Thermostat, "Climate", Modifier.weight(1f), C.Cyan, busy = d.cmd.busy && d.cmd.cmd == Cmd.START) { onClimate() }
+                }
+                ActionTile(Icons.Rounded.Lightbulb, "Lights", Modifier.weight(1f), C.Amber, busy = d.cmd.busy && d.cmd.cmd == Cmd.LIGHTS) { onAct(Cmd.LIGHTS) }
+                ActionTile(Icons.Rounded.Campaign, "Horn", Modifier.weight(1f), C.Red, busy = d.cmd.busy && d.cmd.cmd == Cmd.HORN) { onAct(Cmd.HORN) }
             }
-            ActionTile(Icons.Rounded.Campaign, "Find car", Modifier.weight(1f), C.Red, busy = d.cmd.busy && d.cmd.cmd == Cmd.HORN) { onAct(Cmd.HORN) }
-            ActionTile(Icons.Rounded.Navigation, "Navigate", Modifier.weight(1f), C.Green, enabled = car?.lat != null) { openMaps(true) }
-            ActionTile(Icons.Rounded.Bolt, "Sync live", Modifier.weight(1f), C.Amber, busy = d.refreshing) { vm.refresh(true) }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ActionTile(Icons.Rounded.Work, "Boot", Modifier.weight(1f), C.Green, busy = d.cmd.busy && d.cmd.cmd == Cmd.BOOT) { onAct(Cmd.BOOT) }
+                ActionTile(Icons.Rounded.Navigation, "Navigate", Modifier.weight(1f), C.Green, enabled = car?.lat != null) { openMaps(true) }
+                ActionTile(Icons.Rounded.Bolt, "Sync live", Modifier.weight(1f), C.Amber, busy = d.refreshing) { vm.refresh(true) }
+            }
         }
 
         d.error?.let { ErrorCard(it) { vm.refresh(false) } }

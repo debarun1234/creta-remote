@@ -54,6 +54,8 @@ private fun Cmd.title() = when (this) {
     Cmd.START -> "Start engine & climate"
     Cmd.STOP -> "Stop engine"
     Cmd.HORN -> "Horn & lights"
+    Cmd.LIGHTS -> "Lights only"
+    Cmd.BOOT -> "Open boot"
 }
 
 private fun Outcome.look(): Triple<String, Color, ImageVector> = when (this) {

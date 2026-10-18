@@ -69,6 +69,8 @@ object Notifier {
         Cmd.START -> "Engine start"
         Cmd.STOP -> "Engine stop"
         Cmd.HORN -> "Horn & lights"
+        Cmd.LIGHTS -> "Lights"
+        Cmd.BOOT -> "Boot release"
     }
 
     fun command(ctx: Context, cmd: Cmd, outcome: Outcome, message: String) {

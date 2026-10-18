@@ -51,5 +51,37 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <service
+            android:name=".quick.LightsTile"
+            android:exported="true"
+            android:icon="@drawable/ic_shortcut_lights"
+            android:label="@string/tile_lights"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".quick.BootTile"
+            android:exported="true"
+            android:icon="@drawable/ic_shortcut_boot"
+            android:label="@string/tile_boot"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".quick.KeyWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.debarun.cretaremote.WIDGET_RUN" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/key_widget" />
+        </receiver>
     </application>
 </manifest>
