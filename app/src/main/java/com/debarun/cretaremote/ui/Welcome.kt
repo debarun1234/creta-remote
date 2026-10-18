@@ -213,7 +213,7 @@ fun SetupFlow(d: AppData, vm: AppViewModel) {
                             )
                         }
                         Point(Icons.Rounded.Lock, "Instant controls", "Lock, unlock, climate start, horn and lights from one screen.")
-                        Point(Icons.Rounded.LocalGasStation, "Fuel you can plan around", "Range, km/L, cost and a refuel-by prediction from your own history.")
+                        Point(Icons.Rounded.LocalGasStation, "Fuel you can plan around", "Range, km/L, cost, and a fuel alert you set per trip with a phone alarm.")
                         Point(Icons.Rounded.Place, "Where it's been", "Every trip and parking spot, kept on this phone.")
                     }
                     1 -> {

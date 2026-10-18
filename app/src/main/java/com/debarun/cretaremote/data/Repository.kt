@@ -80,6 +80,7 @@ data class AppData(
     val activityUnread: Int = 0,
     val link: Link = Link.UNKNOWN,
     val linkAt: Long? = null,
+    val fuel: FuelWatchUi = FuelWatchUi(),
 )
 
 fun DayRow.entries(): List<TripEntry> = try {
@@ -146,6 +147,7 @@ class Repository(private val ctx: Context) {
                     services = loadServices(),
                     activity = loadActivity(),
                     activityUnread = loadActivity().count { a -> a.ts > activitySeen },
+                    fuel = FuelWatchUi(store.kvGet("fw")?.let { runCatching { JSONObject(it).optInt("stage", 0) }.getOrNull() } ?: 0, litresOf(car)),
                 )
             }
         }
@@ -377,6 +379,7 @@ class Repository(private val ctx: Context) {
         val lon = car.lon
         if (lat != null && lon != null) recordPlace(lat, lon, car.locTime ?: now)
         checkAlerts(car, now)
+        evaluateFuel(car, fromFetch = true)
         com.debarun.cretaremote.quick.WidgetState.save(ctx, car, _data.value.settings.carTitle())
 
         _data.update {
@@ -462,7 +465,8 @@ class Repository(private val ctx: Context) {
     /** Called by WorkManager: stores a snapshot using the cheap cloud copy. */
     suspend fun backgroundSnapshot(): Boolean {
         if (vault.get("email") == null) return true
-        refresh(live = false)
+        // while driving the modem is awake anyway, so ask the car directly; otherwise take the cached reading
+        refresh(live = _data.value.car?.engineOn == true)
         return _data.value.error == null
     }
 
@@ -574,6 +578,71 @@ class Repository(private val ctx: Context) {
                 Unit
             }
         }
+    }
+
+    // ------------------------------------------------------------------ fuel limit
+
+    private fun litresOf(car: CarState?): Double? = car?.fuelPct?.let { it / 100.0 * _data.value.settings.tankLitres }
+
+    /** Runs on every fetch and whenever the limit changes. Fires the heads-up and the alarm as the tank crosses them. */
+    private fun evaluateFuel(car: CarState, fromFetch: Boolean) {
+        val litres = litresOf(car) ?: return
+        val prev = store.kvGet("fw")?.let { runCatching { JSONObject(it) }.getOrNull() }
+        var stage = prev?.optInt("stage", 0) ?: 0
+        val last = if (prev?.has("lit") == true) prev.optDouble("lit") else null
+        var limit = _data.value.settings.fuelLimitL
+        if (fromFetch && last != null && litres - last >= FuelWatch.REFUEL_L) {
+            // refuelled: this trip is over, the next one starts from the default limit
+            stage = 0
+            if (limit != FuelWatch.DEFAULT) {
+                limit = FuelWatch.DEFAULT
+                updateSettings(_data.value.settings.copy(fuelLimitL = limit))
+            }
+            Notifier.cancelFuelAlarm(ctx)
+        }
+        val n = FuelWatch.next(litres, limit, stage)
+        store.kvPut("fw", JSONObject().put("stage", n.stage).put("lit", litres).toString())
+        _data.update { it.copy(fuel = FuelWatchUi(n.stage, litres)) }
+        when (n.fire) {
+            FuelWatch.Fire.HEADS_UP -> Notifier.fuelHeadsUp(ctx, litres, limit)
+            FuelWatch.Fire.ALARM -> Notifier.fuelAlarm(ctx, litres, limit)
+            null -> {}
+        }
+        if (needsFastWatch()) scheduleFastWatch(append = false)
+    }
+
+    /** Sets this trip's limit (10-30 L) and checks it against the tank right away. */
+    fun setFuelLimit(l: Int) {
+        val v = l.coerceIn(FuelWatch.MIN, FuelWatch.MAX)
+        updateSettings(_data.value.settings.copy(fuelLimitL = v))
+        _data.value.car?.let { evaluateFuel(it, fromFetch = false) }
+    }
+
+    /** "I'll fill up": stops the alarm. It stays quiet until the tank is well above the limit again. */
+    fun ackFuelAlarm() {
+        val litres = _data.value.fuel.litres ?: litresOf(_data.value.car)
+        store.kvPut("fw", JSONObject().put("stage", 3).apply { litres?.let { put("lit", it) } }.toString())
+        _data.update { it.copy(fuel = it.fuel.copy(stage = 3)) }
+        Notifier.cancelFuelAlarm(ctx)
+    }
+
+    /** True while the tank needs close watching: the engine is on, or it is within a few litres of the limit. */
+    fun needsFastWatch(): Boolean {
+        val car = _data.value.car ?: return false
+        if (_data.value.fuel.stage >= 3) return false
+        val litres = litresOf(car)
+        return car.engineOn == true || (litres != null && litres <= _data.value.settings.fuelLimitL + 6)
+    }
+
+    /** Background checks are 15 minutes apart at best; while it matters this chains a check every 5. */
+    fun scheduleFastWatch(append: Boolean) {
+        val req = androidx.work.OneTimeWorkRequestBuilder<com.debarun.cretaremote.work.SnapshotWorker>()
+            .setInitialDelay(5, java.util.concurrent.TimeUnit.MINUTES)
+            .setConstraints(androidx.work.Constraints.Builder().setRequiredNetworkType(androidx.work.NetworkType.CONNECTED).build())
+            .build()
+        androidx.work.WorkManager.getInstance(ctx).enqueueUniqueWork(
+            "fuelwatch", if (append) androidx.work.ExistingWorkPolicy.APPEND_OR_REPLACE else androidx.work.ExistingWorkPolicy.KEEP, req,
+        )
     }
 
     // ------------------------------------------------------------------ wake-up

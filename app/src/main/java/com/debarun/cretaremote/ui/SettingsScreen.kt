@@ -127,7 +127,7 @@ fun SettingsScreen(d: AppData, vm: AppViewModel) {
                     size = 12.sp, color = C.Dim,
                 )
                 Txt(
-                    "Every ~15 minutes the app records odometer and fuel in the background. That history powers the economy and prediction numbers; it never wakes the car.",
+                    "Every ~15 minutes the app records odometer and fuel in the background. That history powers the economy numbers; it never wakes the car.",
                     size = 12.sp, color = C.Dim,
                 )
                 Txt(

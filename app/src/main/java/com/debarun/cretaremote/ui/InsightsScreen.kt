@@ -33,7 +33,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Composable
-fun InsightsScreen(d: AppData) {
+fun InsightsScreen(d: AppData, onFuelLimit: (Int) -> Unit) {
     val ins = d.insights
     val car = d.car
     Column(
@@ -98,13 +98,8 @@ fun InsightsScreen(d: AppData) {
             }
         }
 
-        // ---------------------------------------------------------------- prediction
-        Panel(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Eyebrow("Prediction")
-                PredictionBlock(ins)
-            }
-        }
+        // ---------------------------------------------------------------- fuel alert
+        FuelAlertCard(d.settings.fuelLimitL, d.fuel.litres ?: ins.litresLeft, d.fuel.stage, onFuelLimit)
 
         // ---------------------------------------------------------------- distance
         Panel(Modifier.fillMaxWidth()) {
@@ -178,47 +173,3 @@ private fun MiniStat(label: String, value: String) {
     }
 }
 
-@Composable
-private fun PredictionBlock(ins: FuelInsights) {
-    val days = ins.daysLeft
-    if (days == null) {
-        Txt(
-            "Predictions switch on once the app has a few days of distance data and a fuel reading. Nothing is guessed in the meantime.",
-            size = 13.sp, color = C.Dim,
-        )
-        return
-    }
-    val refuelDays = ((ins.refuelBy ?: 0L) - System.currentTimeMillis()).coerceAtLeast(0L) / 86_400_000.0
-    val frac = if (days > 0) (refuelDays / days).toFloat().coerceIn(0f, 1f) else 0f
-    val p by animateFloatAsState(frac, tween(1400, easing = FastOutSlowInEasing), label = "pred")
-
-    Row(verticalAlignment = Alignment.Bottom) {
-        Column(Modifier.weight(1f)) {
-            Eyebrow("Refuel by")
-            Txt(ins.refuelBy?.let { dayText(it) } ?: "—", size = 26.sp, weight = FontWeight.Light)
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Eyebrow("Empty around")
-            Txt(ins.emptyAt?.let { dayText(it) } ?: "—", size = 16.sp, color = C.Dim)
-        }
-    }
-    Canvas(Modifier.fillMaxWidth().height(34.dp)) {
-        val y = size.height / 2f
-        val h = 10.dp.toPx()
-        drawRoundRect(
-            Brush.horizontalGradient(listOf(C.Green, C.Amber, C.Red)),
-            Offset(0f, y - h / 2), Size(size.width, h), CornerRadius(h / 2),
-        )
-        val x = size.width * p
-        drawLine(Color.White, Offset(x, y - 14.dp.toPx()), Offset(x, y + 14.dp.toPx()), 3.dp.toPx())
-        drawCircle(Color.White, 6.dp.toPx(), Offset(x, y))
-    }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Txt("Now", size = 11.sp, color = C.Faint)
-        Txt("Refuel", size = 11.sp, color = C.Faint)
-        Txt("Empty in ~${Fmt.n(days, 1)} d", size = 11.sp, color = C.Faint)
-    }
-    ins.avgDailyKm?.let {
-        Txt("Assumes ${Fmt.n(it, 0)} km a day and a 50 km reserve.", size = 12.sp, color = C.Dim)
-    }
-}

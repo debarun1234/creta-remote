@@ -153,7 +153,7 @@ private fun Shell(
         ) { t ->
             when (Tab.entries[t]) {
                 Tab.HOME -> HomeScreen(data, vm, lockFlash, onAct = ::act, onClimate = { climate = true }, onCar = { carSheet = true }, onActivity = { activity = true })
-                Tab.INSIGHTS -> InsightsScreen(data)
+                Tab.INSIGHTS -> InsightsScreen(data, onFuelLimit = vm::setFuelLimit)
                 Tab.TRIPS -> TripsScreen(data, vm)
                 Tab.PLACES -> PlacesScreen(data)
                 Tab.SETTINGS -> SettingsScreen(data, vm)

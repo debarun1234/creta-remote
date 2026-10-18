@@ -132,6 +132,8 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
             )
         }
 
+        FuelAlarmBanner(d.fuel.stage, d.fuel.litres, d.settings.fuelLimitL, onAck = vm::ackFuelAlarm)
+
         // ------------------------------------------------------------- hero
         CarHero(
             car, flash,
@@ -166,15 +168,9 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
                         RangeRoad(car?.dteKm, modifier = Modifier.padding(top = 6.dp))
                     }
                     Column {
-                        Eyebrow("Refuel by")
-                        val by = d.insights.refuelBy
-                        Txt(
-                            if (by != null) dayText(by) else "Learning your pace",
-                            size = if (by != null) 20.sp else 14.sp,
-                            color = if (by != null) C.Text else C.Dim,
-                            weight = FontWeight.Medium,
-                        )
-                        d.insights.daysLeft?.let { Txt("~${Fmt.n(it, 1)} days of driving left", size = 12.sp, color = C.Dim) }
+                        Eyebrow("Fuel alert")
+                        FuelLimitStepper(d.settings.fuelLimitL, vm::setFuelLimit, Modifier.padding(top = 4.dp))
+                        Txt("heads-up at ${d.settings.fuelLimitL + 2} L, alarm at ${d.settings.fuelLimitL} L", size = 11.sp, color = C.Faint, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
             }
