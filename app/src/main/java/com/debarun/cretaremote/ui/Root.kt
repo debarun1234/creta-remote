@@ -134,6 +134,7 @@ private fun Shell(
         when (action) {
             "com.debarun.cretaremote.LOCK" -> act(Cmd.LOCK)
             "com.debarun.cretaremote.UNLOCK" -> act(Cmd.UNLOCK)
+            "com.debarun.cretaremote.START" -> act(Cmd.START)
             "com.debarun.cretaremote.LIGHTS" -> act(Cmd.LIGHTS)
             "com.debarun.cretaremote.BOOT" -> act(Cmd.BOOT)
         }

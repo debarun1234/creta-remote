@@ -3,6 +3,7 @@ package com.debarun.cretaremote.quick
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
@@ -17,16 +18,36 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Home-screen key. Lock and Lights fire straight from the widget. Unlock and Boot open the app instead, so they
- * go through the biometric check; a widget on an unlocked home screen must not be able to open the car by itself.
+ * Home-screen key: a lock key that follows the car's state, Lights, an ignition key and Boot. Locking, stopping the
+ * engine and Lights fire straight from the widget. Unlocking, starting and the boot open the app instead, so they go
+ * through the biometric check; a widget on an unlocked home screen must not be able to open or start the car itself.
  */
 class KeyWidget : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, mgr: AppWidgetManager, ids: IntArray) {
         val v = RemoteViews(context.packageName, R.layout.widget_key)
-        v.setOnClickPendingIntent(R.id.w_lock, run(context, Cmd.LOCK))
+        val st = WidgetState.read(context)
+        // one lock key that shows the car's state: open lock -> tap locks straight away; locked -> tap opens the app to unlock
+        if (st.locked == false) {
+            v.setTextViewText(R.id.w_lock, "Unlocked")
+            v.setTextViewCompoundDrawables(R.id.w_lock, 0, R.drawable.ic_widget_unlocked, 0, 0)
+            v.setOnClickPendingIntent(R.id.w_lock, run(context, Cmd.LOCK))
+        } else {
+            v.setTextViewText(R.id.w_lock, if (st.locked == true) "Locked" else "Lock")
+            v.setTextViewCompoundDrawables(R.id.w_lock, 0, R.drawable.ic_widget_locked, 0, 0)
+            v.setOnClickPendingIntent(R.id.w_lock, if (st.locked == true) open(context, "UNLOCK") else run(context, Cmd.LOCK))
+        }
+        // one ignition key: running -> Stop straight away; off -> opens the app to start (fingerprint)
+        if (st.engine) {
+            v.setTextViewText(R.id.w_ign, "Stop")
+            v.setTextViewCompoundDrawables(R.id.w_ign, 0, R.drawable.ic_widget_stop, 0, 0)
+            v.setOnClickPendingIntent(R.id.w_ign, run(context, Cmd.STOP))
+        } else {
+            v.setTextViewText(R.id.w_ign, "Start")
+            v.setTextViewCompoundDrawables(R.id.w_ign, 0, R.drawable.ic_shortcut_start, 0, 0)
+            v.setOnClickPendingIntent(R.id.w_ign, open(context, "START"))
+        }
         v.setOnClickPendingIntent(R.id.w_lights, run(context, Cmd.LIGHTS))
-        v.setOnClickPendingIntent(R.id.w_unlock, open(context, "UNLOCK"))
         v.setOnClickPendingIntent(R.id.w_boot, open(context, "BOOT"))
         ids.forEach { mgr.updateAppWidget(it, v) }
     }
@@ -67,5 +88,32 @@ class KeyWidget : AppWidgetProvider() {
 
     companion object {
         const val RUN = "com.debarun.cretaremote.WIDGET_RUN"
+    }
+}
+
+/** The last known lock and engine state, kept so the widget can show it without the app running. */
+object WidgetState {
+    data class S(val locked: Boolean?, val engine: Boolean)
+
+    private fun prefs(c: Context) = c.getSharedPreferences("widget", Context.MODE_PRIVATE)
+
+    fun read(c: Context): S {
+        val p = prefs(c)
+        return S(if (p.contains("locked")) p.getBoolean("locked", true) else null, p.getBoolean("engine", false))
+    }
+
+    fun save(c: Context, locked: Boolean?, engine: Boolean) {
+        if (read(c) == S(locked, engine)) return
+        prefs(c).edit().apply { if (locked == null) remove("locked") else putBoolean("locked", locked) }.putBoolean("engine", engine).apply()
+        refresh(c)
+    }
+
+    fun saveLocked(c: Context, locked: Boolean) = save(c, locked, read(c).engine)
+    fun saveEngine(c: Context, engine: Boolean) = save(c, read(c).locked, engine)
+
+    private fun refresh(c: Context) {
+        val mgr = AppWidgetManager.getInstance(c)
+        val ids = mgr.getAppWidgetIds(ComponentName(c, KeyWidget::class.java))
+        if (ids.isNotEmpty()) KeyWidget().onUpdate(c, mgr, ids)
     }
 }

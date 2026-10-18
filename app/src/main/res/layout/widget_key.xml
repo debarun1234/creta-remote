@@ -7,8 +7,8 @@
     android:orientation="horizontal"
     android:padding="6dp">
 
-    <TextView android:id="@+id/w_lock" style="@style/KeyBtn" android:drawableTop="@drawable/ic_shortcut_lock" android:text="Lock" />
+    <TextView android:id="@+id/w_lock" style="@style/KeyBtn" android:drawableTop="@drawable/ic_widget_locked" android:text="Lock" />
     <TextView android:id="@+id/w_lights" style="@style/KeyBtn" android:drawableTop="@drawable/ic_shortcut_lights" android:text="Lights" />
-    <TextView android:id="@+id/w_unlock" style="@style/KeyBtn" android:drawableTop="@drawable/ic_shortcut_unlock" android:text="Unlock" />
+    <TextView android:id="@+id/w_ign" style="@style/KeyBtn" android:drawableTop="@drawable/ic_shortcut_start" android:text="Start" />
     <TextView android:id="@+id/w_boot" style="@style/KeyBtn" android:drawableTop="@drawable/ic_shortcut_boot" android:text="Boot" />
 </LinearLayout>

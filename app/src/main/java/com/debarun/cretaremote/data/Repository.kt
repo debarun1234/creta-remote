@@ -375,6 +375,7 @@ class Repository(private val ctx: Context) {
         val lon = car.lon
         if (lat != null && lon != null) recordPlace(lat, lon, car.locTime ?: now)
         checkAlerts(car, now)
+        com.debarun.cretaremote.quick.WidgetState.save(ctx, car.locked, car.engineOn == true)
 
         _data.update {
             it.copy(
@@ -721,8 +722,11 @@ class Repository(private val ctx: Context) {
                     if (cmd == Cmd.LOCK || cmd == Cmd.UNLOCK) {
                         val locked = cmd == Cmd.LOCK
                         lockOverride = locked to System.currentTimeMillis()
+                        com.debarun.cretaremote.quick.WidgetState.saveLocked(ctx, locked)
                         _data.update { it.copy(car = it.car?.copy(locked = locked)) }
                     }
+                    if (cmd == Cmd.START) com.debarun.cretaremote.quick.WidgetState.saveEngine(ctx, true)
+                    if (cmd == Cmd.STOP) com.debarun.cretaremote.quick.WidgetState.saveEngine(ctx, false)
                     setCmd(cmd, Phase.OK, doneText(cmd))
                     _data.update { it.copy(link = Link.AWAKE, linkAt = System.currentTimeMillis()) }
                     lastActivity = System.currentTimeMillis()
