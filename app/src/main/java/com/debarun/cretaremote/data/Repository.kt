@@ -54,6 +54,9 @@ data class CmdUi(val cmd: Cmd? = null, val phase: Phase = Phase.IDLE, val messag
 
 data class TripMonthUi(val yyyymm: String, val summary: TripSummary?, val days: List<DayRow>, val note: String? = null)
 
+/** What we know about the car's modem: it sleeps to save the battery and has to be woken before it will act. */
+enum class Link { UNKNOWN, WAKING, AWAKE, ASLEEP }
+
 data class AppData(
     val booting: Boolean = true,
     val signedIn: Boolean = false,
@@ -75,6 +78,8 @@ data class AppData(
     val services: List<ServiceLog> = emptyList(),
     val activity: List<Activity> = emptyList(),
     val activityUnread: Int = 0,
+    val link: Link = Link.UNKNOWN,
+    val linkAt: Long? = null,
 )
 
 fun DayRow.entries(): List<TripEntry> = try {
@@ -312,9 +317,10 @@ class Repository(private val ctx: Context) {
     private data class Fetched(val status: JSONObject, val loc: JSONObject?, val maint: JSONObject?)
 
     /** [live] = ask the car for fresh data (slower, wakes modem). Otherwise read the cloud copy (fast). */
-    suspend fun refresh(live: Boolean) {
-        if (!refreshLock.tryLock()) return
-        _data.update { it.copy(refreshing = true, error = null) }
+    /** Returns true when the car answered, false when it did not, null when another refresh was already running. */
+    suspend fun refresh(live: Boolean, quiet: Boolean = false): Boolean? {
+        if (!refreshLock.tryLock()) return null
+        if (!quiet) _data.update { it.copy(refreshing = true, error = null) }
         try {
             val f = api { s ->
                 val v = ensureVehicle(s)
@@ -332,8 +338,10 @@ class Repository(private val ctx: Context) {
                 }
             }
             applyFetched(f)
+            return true
         } catch (e: Exception) {
-            _data.update { it.copy(refreshing = false, error = friendly(e)) }
+            _data.update { it.copy(refreshing = false, error = if (quiet) it.error else friendly(e)) }
+            return false
         } finally {
             refreshLock.unlock()
         }
@@ -565,6 +573,57 @@ class Repository(private val ctx: Context) {
         }
     }
 
+    // ------------------------------------------------------------------ wake-up
+
+    @Volatile private var lastActivity = 0L
+    @Volatile private var lastPing = 0L
+    private var keepJob: Job? = null
+
+    private fun hasCreds() = vault.get("email") != null && vault.get("password") != null
+
+    /**
+     * The car's modem sleeps and has to be woken before it will act, which is most of the wait on every command.
+     * A live status read is the closest thing Bluelink offers to a wake-up call, so while the app is on screen it
+     * sends one on open and again every few minutes, for at most [KEEP_AWAKE_MS] after the last activity. That cap
+     * protects the 12 V battery and Hyundai's rate limit.
+     */
+    fun onForeground(visible: Boolean) {
+        AppForeground.visible = visible
+        if (!visible) { keepJob?.cancel(); keepJob = null; return }
+        if (!hasCreds() || !_data.value.settings.keepAwake) return
+        lastActivity = System.currentTimeMillis()
+        if (keepJob?.isActive == true) return
+        keepJob = scope.launch {
+            while (AppForeground.visible && System.currentTimeMillis() - lastActivity < KEEP_AWAKE_MS) {
+                if (!_data.value.cmd.busy && System.currentTimeMillis() - lastPing > PING_EVERY_MS) wakePing()
+                delay(15_000)
+            }
+        }
+    }
+
+    /** One wake-up call, used by the keep-awake loop and when the Quick Settings panel is opened. */
+    suspend fun wakePing() {
+        if (_data.value.cmd.busy || !hasCreds()) return
+        lastPing = System.currentTimeMillis()
+        val before = _data.value.link
+        _data.update { it.copy(link = Link.WAKING) }
+        val ok = refresh(live = true, quiet = true)
+        _data.update {
+            when (ok) {
+                true -> it.copy(link = Link.AWAKE, linkAt = System.currentTimeMillis())
+                false -> it.copy(link = Link.ASLEEP, linkAt = System.currentTimeMillis())
+                null -> it.copy(link = before)
+            }
+        }
+    }
+
+    /** For callers outside the app (Quick Settings tiles): wake the car if it has not been pinged lately. */
+    fun wakeIfIdle() {
+        if (!_data.value.settings.keepAwake || !hasCreds()) return
+        if (System.currentTimeMillis() - lastPing < PING_EVERY_MS) return
+        scope.launch { wakePing() }
+    }
+
     // ------------------------------------------------------------------ activity log
 
     private var activitySeen: Long = 0L
@@ -607,6 +666,7 @@ class Repository(private val ctx: Context) {
 
     suspend fun run(cmd: Cmd) {
         if (_data.value.cmd.busy) return
+        lastActivity = System.currentTimeMillis()
         cmdJob = currentCoroutineContext()[Job]
         cancelRequested = false
         client.lastRoute = null
@@ -664,6 +724,8 @@ class Repository(private val ctx: Context) {
                         _data.update { it.copy(car = it.car?.copy(locked = locked)) }
                     }
                     setCmd(cmd, Phase.OK, doneText(cmd))
+                    _data.update { it.copy(link = Link.AWAKE, linkAt = System.currentTimeMillis()) }
+                    lastActivity = System.currentTimeMillis()
                     log(Outcome.SUCCESS, doneText(cmd))
                     scope.launch { delay(4_000); refresh(live = false) }
                 }
@@ -714,6 +776,11 @@ class Repository(private val ctx: Context) {
         Cmd.HORN -> "Horn & lights on"
         Cmd.LIGHTS -> "Lights flashed"
         Cmd.BOOT -> "Boot released"
+    }
+
+    private companion object {
+        const val KEEP_AWAKE_MS = 10 * 60_000L
+        const val PING_EVERY_MS = 3 * 60_000L
     }
 
     private fun setCmd(c: Cmd, p: Phase, m: String) = _data.update { it.copy(cmd = CmdUi(c, p, m)) }

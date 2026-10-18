@@ -28,11 +28,11 @@ class MainActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
-        com.debarun.cretaremote.data.AppForeground.visible = true
+        (application as CretaApp).repo.onForeground(true)
     }
 
     override fun onStop() {
-        com.debarun.cretaremote.data.AppForeground.visible = false
+        (application as CretaApp).repo.onForeground(false)
         super.onStop()
     }
 

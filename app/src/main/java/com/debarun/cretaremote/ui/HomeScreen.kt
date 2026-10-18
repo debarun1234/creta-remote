@@ -70,6 +70,7 @@ import com.debarun.cretaremote.AppViewModel
 import com.debarun.cretaremote.bluelink.CarState
 import com.debarun.cretaremote.data.AppData
 import com.debarun.cretaremote.data.Cmd
+import com.debarun.cretaremote.data.Link
 import com.debarun.cretaremote.data.Settings
 import com.debarun.cretaremote.data.carTitle
 import kotlinx.coroutines.delay
@@ -120,6 +121,11 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
                 null -> StatusChip(if (d.refreshing) "Connecting…" else "Status unknown", C.Dim, pulse = d.refreshing)
             }
             if (car?.engineOn == true) StatusChip("Engine on", C.Amber, pulse = true)
+            when {
+                d.link == Link.WAKING -> StatusChip("Waking car…", C.Cyan, pulse = true)
+                d.link == Link.AWAKE && now - (d.linkAt ?: 0L) < 5 * 60_000L -> StatusChip("Car awake", C.Green)
+                d.link == Link.ASLEEP || d.link == Link.AWAKE -> StatusChip("Car asleep", C.Dim)
+            }
             Txt(
                 "Car reported ${agoText(car?.updatedAt ?: d.fetchedAt, now)}",
                 Modifier.weight(1f), size = 12.sp, color = C.Faint, maxLines = 1,

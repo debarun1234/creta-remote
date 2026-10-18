@@ -17,6 +17,7 @@ data class Settings(
     val serviceMonths: Int = 12,
     val notifyCommands: Boolean = true,
     val notifyAlerts: Boolean = true,
+    val keepAwake: Boolean = true,
 )
 
 /** "2022 Creta SX" - the year comes from the VIN once one is entered, otherwise from the saved model year. */
@@ -40,6 +41,7 @@ class SettingsStore(context: Context) {
         serviceMonths = p.getInt("svcMonths", 12),
         notifyCommands = p.getBoolean("ncmd", true),
         notifyAlerts = p.getBoolean("nalert", true),
+        keepAwake = p.getBoolean("awake", true),
     )
 
     fun save(s: Settings) {
@@ -58,6 +60,7 @@ class SettingsStore(context: Context) {
             .putInt("svcMonths", s.serviceMonths)
             .putBoolean("ncmd", s.notifyCommands)
             .putBoolean("nalert", s.notifyAlerts)
+            .putBoolean("awake", s.keepAwake)
             .apply()
     }
 }

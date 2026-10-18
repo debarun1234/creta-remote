@@ -218,6 +218,14 @@ private fun PermissionsPanel(d: AppData, vm: AppViewModel) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Eyebrow("Permissions and alerts")
 
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Txt("Wake the car on open", size = 14.sp, weight = FontWeight.Medium)
+                    Txt("Sends a live status request when you open the app, then every 3 minutes for up to 10 minutes, so the car is awake when you act. Uses a little car battery and mobile data.", size = 12.sp, color = C.Dim)
+                }
+                Toggle(s.keepAwake, { vm.saveSettings(s.copy(keepAwake = it)) })
+            }
+
             PermRow(
                 "Notifications", "How a command ended and car alerts, when the app is closed.", notifOn,
                 onAllow = {

@@ -29,6 +29,7 @@ abstract class CarTile : TileService() {
     override fun onStartListening() {
         super.onStartListening()
         render(repo.data.value.cmd)
+        repo.wakeIfIdle() // pulling the panel down is a good hint a command is coming, so start waking the car now
         job = CoroutineScope(Dispatchers.Main).launch {
             repo.data.map { it.cmd }.distinctUntilChanged().collect { render(it) }
         }

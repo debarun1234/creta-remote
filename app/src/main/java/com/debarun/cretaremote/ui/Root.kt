@@ -274,26 +274,33 @@ private fun CommandBanner(data: com.debarun.cretaremote.data.AppData, onCancel: 
         enter = slideInVertically(tween(320, easing = FastOutSlowInEasing)) { -it } + fadeIn(),
         exit = slideOutVertically(tween(260)) { -it } + fadeOut(),
     ) {
-        Row(
-            Modifier.padding(top = 52.dp, start = 16.dp, end = 16.dp).clip(RoundedCornerShape(26.dp))
-                .background(Color(0xF2171A22)).border(1.dp, C.Line, RoundedCornerShape(26.dp))
+        val shape = RoundedCornerShape(26.dp)
+        Column(
+            Modifier.padding(top = 52.dp, start = 16.dp, end = 16.dp).fillMaxWidth().clip(shape)
+                .background(Color(0xF2171A22)).border(1.dp, C.Line, shape)
                 .padding(horizontal = 18.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            PhaseGlyph(c.phase)
-            Column(Modifier.padding(start = 12.dp).widthIn(max = 230.dp)) {
-                Txt(c.cmd?.label ?: "", size = 14.sp, weight = FontWeight.SemiBold)
-                Txt(c.message, size = 12.sp, color = C.Dim)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PhaseGlyph(c.phase)
+                Column(Modifier.padding(start = 12.dp).weight(1f)) {
+                    Txt(c.cmd?.label ?: "", size = 14.sp, weight = FontWeight.SemiBold)
+                    Txt(c.message, size = 12.sp, color = C.Dim)
+                }
+                if (c.busy) {
+                    Txt(
+                        "Cancel",
+                        Modifier.padding(start = 14.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x33E3192D))
+                            .border(1.dp, C.Red, RoundedCornerShape(16.dp))
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onCancel() }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        size = 13.sp, weight = FontWeight.SemiBold, color = C.RedHi,
+                    )
+                }
             }
-            if (c.busy) {
-                Txt(
-                    "Cancel",
-                    Modifier.padding(start = 14.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x33E3192D))
-                        .border(1.dp, C.Red, RoundedCornerShape(16.dp))
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onCancel() }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    size = 13.sp, weight = FontWeight.SemiBold, color = C.RedHi,
-                )
+            StageTrack(c.phase)
+            if (c.phase == Phase.WAITING) {
+                Txt("The car sleeps to save its battery, so the first command after a quiet spell is the slowest.", size = 11.sp, color = C.Faint)
             }
         }
     }
