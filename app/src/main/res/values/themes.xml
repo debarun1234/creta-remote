@@ -5,13 +5,24 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
-    <style name="KeyBtn">
+    <style name="KeyCell">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">match_parent</item>
         <item name="android:layout_weight">1</item>
+        <item name="android:orientation">vertical</item>
         <item name="android:gravity">center</item>
-        <item name="android:drawablePadding">2dp</item>
-        <item name="android:textColor">#E8EAF0</item>
+    </style>
+    <style name="KeyIcon">
+        <item name="android:layout_width">28dp</item>
+        <item name="android:layout_height">28dp</item>
+        <item name="android:scaleType">fitCenter</item>
+    </style>
+    <style name="KeyLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">5dp</item>
         <item name="android:textSize">11sp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:textColor">#E8EAF0</item>
     </style>
 </resources>

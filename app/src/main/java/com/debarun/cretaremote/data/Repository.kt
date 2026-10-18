@@ -301,8 +301,10 @@ class Repository(private val ctx: Context) {
     }
 
     fun updateSettings(s: Settings) {
+        val old = _data.value.settings
         settingsStore.save(s)
         _data.update { it.copy(settings = s) }
+        if (old.widgetTheme != s.widgetTheme || old.widgetBg != s.widgetBg) com.debarun.cretaremote.quick.Widgets.updateAll(ctx)
         _data.update { it.copy(insights = computeInsights(it.car)) }
     }
 
@@ -375,7 +377,7 @@ class Repository(private val ctx: Context) {
         val lon = car.lon
         if (lat != null && lon != null) recordPlace(lat, lon, car.locTime ?: now)
         checkAlerts(car, now)
-        com.debarun.cretaremote.quick.WidgetState.save(ctx, car.locked, car.engineOn == true)
+        com.debarun.cretaremote.quick.WidgetState.save(ctx, car, _data.value.settings.carTitle())
 
         _data.update {
             it.copy(

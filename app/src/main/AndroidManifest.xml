@@ -87,12 +87,33 @@
 
         <receiver
             android:name=".quick.KeyWidget"
-            android:exported="false">
+            android:exported="false"
+            android:label="@string/widget_label_keywidget">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="com.debarun.cretaremote.WIDGET_RUN" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/key_widget" />
+        </receiver>
+
+        <receiver
+            android:name=".quick.MiniWidget"
+            android:exported="false"
+            android:label="@string/widget_label_miniwidget">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/mini_widget" />
+        </receiver>
+
+        <receiver
+            android:name=".quick.StatusWidget"
+            android:exported="false"
+            android:label="@string/widget_label_statuswidget">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/status_widget" />
         </receiver>
     </application>
 </manifest>

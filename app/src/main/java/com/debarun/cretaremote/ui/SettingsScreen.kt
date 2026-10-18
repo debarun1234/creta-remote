@@ -4,7 +4,12 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -98,6 +103,17 @@ fun SettingsScreen(d: AppData, vm: AppViewModel) {
                 Field("Bluelink PIN", pin, { pin = it.filter { c -> c.isDigit() }.take(6) }, password = true, keyboard = KeyboardType.NumberPassword,
                     hint = if (d.hasPin) "saved - type to replace" else "needed for engine stop and horn")
                 if (pin.length >= 4) PrimaryButton("Save PIN", { vm.savePin(pin); pin = "" })
+            }
+        }
+
+        Panel(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Eyebrow("Home-screen widgets")
+                Txt("Add them from your home screen's widget picker: Creta key, lock and ignition, and status.", size = 12.sp, color = C.Dim)
+                Txt("Theme", size = 14.sp, weight = FontWeight.Medium)
+                Segmented(listOf("Auto", "Dark", "Light"), s.widgetTheme) { vm.saveSettings(s.copy(widgetTheme = it)) }
+                Txt("Background", size = 14.sp, weight = FontWeight.Medium)
+                Segmented(listOf("Solid", "Glass", "Clear"), s.widgetBg) { vm.saveSettings(s.copy(widgetBg = it)) }
             }
         }
 
@@ -279,6 +295,25 @@ private fun PermRow(title: String, sub: String, on: Boolean, onAllow: () -> Unit
         }
         Box(Modifier.width(108.dp)) {
             if (on) GhostButton("Manage", onManage) else GhostButton("Allow", onAllow, color = C.Cyan)
+        }
+    }
+}
+
+/** A small pill-style choice row. */
+@Composable
+private fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(Modifier.fillMaxWidth().clip(shape).background(C.Surface2).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        options.forEachIndexed { i, label ->
+            val on = i == selected
+            Box(
+                Modifier.weight(1f).clip(RoundedCornerShape(11.dp))
+                    .background(if (on) C.Red.copy(alpha = 0.22f) else Color.Transparent)
+                    .clickable { onSelect(i) }.padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Txt(label, size = 13.sp, weight = FontWeight.Medium, color = if (on) C.Text else C.Dim)
+            }
         }
     }
 }

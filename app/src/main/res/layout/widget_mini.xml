@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/w_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_bg" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="8dp">
+        <LinearLayout android:id="@+id/w_lock" style="@style/KeyCell">
+            <ImageView android:id="@+id/i_lock" style="@style/KeyIcon" android:src="@drawable/ic_widget_locked" />
+            <TextView android:id="@+id/t_lock" style="@style/KeyLabel" android:text="Lock" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/w_ign" style="@style/KeyCell">
+            <ImageView android:id="@+id/i_ign" style="@style/KeyIcon" android:src="@drawable/ic_shortcut_start" />
+            <TextView android:id="@+id/t_ign" style="@style/KeyLabel" android:text="Start" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

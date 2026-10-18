@@ -18,6 +18,10 @@ data class Settings(
     val notifyCommands: Boolean = true,
     val notifyAlerts: Boolean = true,
     val keepAwake: Boolean = true,
+    /** 0 follow the phone, 1 dark, 2 light */
+    val widgetTheme: Int = 0,
+    /** 0 solid, 1 glass, 2 clear */
+    val widgetBg: Int = 1,
 )
 
 /** "2022 Creta SX" - the year comes from the VIN once one is entered, otherwise from the saved model year. */
@@ -42,6 +46,8 @@ class SettingsStore(context: Context) {
         notifyCommands = p.getBoolean("ncmd", true),
         notifyAlerts = p.getBoolean("nalert", true),
         keepAwake = p.getBoolean("awake", true),
+        widgetTheme = p.getInt("wtheme", 0),
+        widgetBg = p.getInt("wbg", 1),
     )
 
     fun save(s: Settings) {
@@ -61,6 +67,8 @@ class SettingsStore(context: Context) {
             .putBoolean("ncmd", s.notifyCommands)
             .putBoolean("nalert", s.notifyAlerts)
             .putBoolean("awake", s.keepAwake)
+            .putInt("wtheme", s.widgetTheme)
+            .putInt("wbg", s.widgetBg)
             .apply()
     }
 }
