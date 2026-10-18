@@ -124,7 +124,7 @@ fun TripsScreen(d: AppData, vm: AppViewModel) {
     val byDay = days.associateBy { it.day }
     val sel = selected?.let { byDay[it] } ?: days.lastOrNull { it.dist > 0 || it.count > 0 }
     val kmpl = d.insights.kmplUsed
-    val price = d.settings.fuelPricePerL
+    val price = d.insights.ledger.priceLast ?: d.settings.fuelPricePerL
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding()

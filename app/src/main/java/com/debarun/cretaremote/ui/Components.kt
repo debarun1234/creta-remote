@@ -39,7 +39,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
-import com.debarun.cretaremote.data.Cycle
 import com.debarun.cretaremote.data.Phase
 import java.text.NumberFormat
 import java.util.Locale
@@ -546,6 +545,3 @@ fun GhostButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier
         contentAlignment = Alignment.Center,
     ) { Txt(text, size = 15.sp, color = color, weight = FontWeight.Medium) }
 }
-
-@Suppress("unused")
-fun efficiencySeries(cycles: List<Cycle>): List<Double> = cycles.map { it.kmpl }

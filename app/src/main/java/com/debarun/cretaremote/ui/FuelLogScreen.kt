@@ -1,0 +1,363 @@
+package com.debarun.cretaremote.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.debarun.cretaremote.AppViewModel
+import com.debarun.cretaremote.data.AppData
+import com.debarun.cretaremote.data.Fill
+import com.debarun.cretaremote.data.FuelLedger
+import java.text.SimpleDateFormat
+import java.util.Locale
+
+private fun rs(v: Double?, dec: Int = 0): String = if (v == null) "—" else "₹" + Fmt.n(v, dec)
+private fun kmplText(v: Double?): String = if (v == null) "—" else Fmt.n(v, 1)
+private fun cleanNum(s: String): String = s.filter { it.isDigit() || it == '.' }.take(8)
+
+/** Fill-up ledger, true full-tank economy, running cost, per-trip cost and tank check. Opened from Insights. */
+@Composable
+fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
+    val ins = d.insights
+    val l = ins.ledger
+    val car = d.car
+    val tank = d.settings.tankLitres
+    var form by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<Fill?>(null) }
+
+    Column(
+        Modifier.fillMaxSize().background(C.Bg).verticalScroll(rememberScrollState()).statusBarsPadding()
+            .padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 120.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Eyebrow("Fuel")
+                Txt("Fuel log", size = 30.sp, weight = FontWeight.Light, spacing = (-0.5).sp)
+            }
+            Box(
+                Modifier.size(42.dp).clip(CircleShape).background(C.Surface2).clickable { onClose() },
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Rounded.Close, "Close", tint = C.Dim, modifier = Modifier.size(20.dp)) }
+        }
+
+        // ------------------------------------------------------------ log a fill-up
+        if (form) {
+            Panel(Modifier.fillMaxWidth()) {
+                FillForm(
+                    initial = editing,
+                    odoDefault = car?.odometerKm,
+                    priceDefault = l.priceLast,
+                    tank = tank,
+                    onSave = { f -> vm.saveFill(f, editing?.ts).also { if (it == null) { form = false; editing = null } } },
+                    onDelete = editing?.let { e -> { vm.deleteFill(e.ts); form = false; editing = null } },
+                    onCancel = { form = false; editing = null },
+                )
+            }
+        } else {
+            PrimaryButton("Log a fill-up", { editing = null; form = true })
+        }
+
+        // ------------------------------------------------------------ economy
+        Panel(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Eyebrow("Real fuel economy")
+                CountUp(l.kmplRecent, decimals = 1, size = 54.sp, suffix = "km/L")
+                if (l.usable) {
+                    Txt(
+                        "Last ${l.recentLegs} full-tank stretch${if (l.recentLegs == 1) "" else "es"}, pooled by distance",
+                        size = 12.sp, color = C.Dim,
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Stat("Average", kmplText(l.kmplAll), Modifier.weight(1f))
+                        Stat("Best", kmplText(l.kmplBest), Modifier.weight(1f), C.Green)
+                        Stat("Worst", kmplText(l.kmplWorst), Modifier.weight(1f), C.Amber)
+                    }
+                    l.index?.let { idx ->
+                        val c = when { idx >= 103 -> C.Green; idx <= 95 -> C.Amber; else -> C.Dim }
+                        val word = when { idx >= 103 -> "${idx - 100}% better than your average"; idx <= 95 -> "${100 - idx}% below your average"; else -> "in line with your average" }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Txt("$idx", size = 26.sp, color = c, weight = FontWeight.Medium)
+                            Column {
+                                Txt("Efficiency index", size = 13.sp, weight = FontWeight.Medium)
+                                Txt("Latest two stretches, $word", size = 11.sp, color = C.Faint)
+                            }
+                        }
+                    }
+                } else {
+                    Txt(l.hint ?: "", size = 13.sp, color = C.Dim)
+                }
+                val series = l.legs.filter { it.valid }.map { it.kmpl }
+                if (series.size >= 2) {
+                    LineChart(series, Modifier.fillMaxWidth().height(130.dp), C.Cyan)
+                    Txt("km/L per full-tank stretch, oldest to newest", size = 11.sp, color = C.Faint)
+                } else if (l.usable && l.hint != null) {
+                    Txt(l.hint, size = 12.sp, color = C.Amber)
+                }
+            }
+        }
+
+        // ------------------------------------------------------------ cost
+        Panel(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Eyebrow("Running cost")
+                if (l.costPerKm != null || l.costPerKmNow != null) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Stat("Paid per km", rs(l.costPerKm, 2), Modifier.weight(1f))
+                        Stat("Per km at today's price", rs(l.costPerKmNow, 2), Modifier.weight(1f))
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Stat("Per day", rs(l.costPerDay), Modifier.weight(1f))
+                        Stat("Per month", rs(l.costPerMonth), Modifier.weight(1f))
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Stat("Average price / L", rs(l.priceAvg, 2), Modifier.weight(1f))
+                        Stat("Latest price / L", rs(l.priceLast, 2), Modifier.weight(1f))
+                    }
+                    Txt(
+                        "Total logged: ${Fmt.n(l.litresTotal, 1)} L, ${rs(l.spendTotal)}" +
+                            (l.kmPerDay?.let { " · you drive about ${Fmt.n(it, 0)} km a day" } ?: ""),
+                        size = 12.sp, color = C.Dim,
+                    )
+                    if (l.priceIsFallback) Txt("No price logged on any fill-up, so the price from Settings is used.", size = 11.sp, color = C.Faint)
+                } else {
+                    Txt("Add the price per litre (or the amount paid) when you log a fill-up, and cost per km, day and month appear here.", size = 13.sp, color = C.Dim)
+                }
+            }
+        }
+
+        // ------------------------------------------------------------ trip cost
+        TripCostPanel(d)
+
+        // ------------------------------------------------------------ tank check
+        Panel(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Eyebrow("In the tank now")
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Stat("Gauge says", ins.litresLeft?.let { "${Fmt.n(it, 1)} L" } ?: "—", Modifier.weight(1f))
+                    Stat("Fill-up log says", l.estLitres?.let { "${Fmt.n(it, 1)} L" } ?: "—", Modifier.weight(1f), C.Cyan)
+                }
+                if (l.openKm != null) {
+                    Txt(
+                        "Driven ${Fmt.n(l.openKm, 0)} km since your last brim-full fill" +
+                            (if (l.openLitresAdded > 0) ", plus ${Fmt.n(l.openLitresAdded, 1)} L topped up since" else ""),
+                        size = 12.sp, color = C.Dim,
+                    )
+                }
+                if (ins.predictedRangeKm != null) {
+                    Txt(
+                        "About ${Fmt.n(ins.predictedRangeKm, 0)} km to go" +
+                            (ins.refuelBy?.let { " · refuel by ${dayText(it)}" } ?: ""),
+                        size = 13.sp, color = C.Text,
+                    )
+                }
+                Txt(
+                    "The gauge is a coarse percentage of the ${Fmt.n(tank, 0)} L tank. The log estimate is tank size minus km driven at your real economy plus top-ups, so it sharpens after every brim-full fill.",
+                    size = 11.sp, color = C.Faint,
+                )
+            }
+        }
+
+        // ------------------------------------------------------------ stretches
+        Panel(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Eyebrow("Full-tank stretches")
+                if (l.legs.isEmpty()) {
+                    Txt("A stretch is the distance between two brim-full fill-ups, with every litre added in between. Log two brim-full fills to get the first.", size = 13.sp, color = C.Dim)
+                } else {
+                    l.legs.asReversed().take(12).forEach { g ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Txt("${Fmt.grouped(g.fromOdo.toLong())} to ${Fmt.grouped(g.toOdo.toLong())} km", size = 14.sp, weight = FontWeight.Medium)
+                                Txt(
+                                    "${Fmt.n(g.km, 0)} km · ${Fmt.n(g.litres, 1)} L · ${rs(g.cost)}" + if (g.fills > 1) " · ${g.fills} fills" else "",
+                                    size = 12.sp, color = C.Faint,
+                                )
+                                if (!g.valid) Txt(g.note, size = 11.sp, color = C.Amber)
+                            }
+                            Txt(
+                                if (g.litres > 0) Fmt.n(g.kmpl, 1) else "—",
+                                size = 18.sp, weight = FontWeight.Medium, color = if (g.valid) C.Cyan else C.Faint,
+                            )
+                            Txt(" km/L", size = 11.sp, color = C.Faint)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ------------------------------------------------------------ ledger
+        Panel(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Eyebrow("Fill-ups", Modifier.weight(1f))
+                    Box(
+                        Modifier.clip(CircleShape).background(C.Surface2).clickable { editing = null; form = true }.padding(8.dp),
+                    ) { Icon(Icons.Rounded.Add, "Log a fill-up", tint = C.RedHi, modifier = Modifier.size(18.dp)) }
+                }
+                if (l.fills.isEmpty()) {
+                    Txt("Nothing logged yet. Tap Log a fill-up after your next visit to the pump.", size = 13.sp, color = C.Dim)
+                } else {
+                    l.fills.asReversed().forEach { f ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                                .clickable { editing = f; form = true }.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Txt(dayText(f.ts), size = 14.sp, weight = FontWeight.Medium)
+                                Txt(
+                                    "${Fmt.grouped(f.odoKm.toLong())} km · " + (if (f.pricePerL > 0) "${rs(f.pricePerL, 2)}/L · ${rs(f.amount)}" else "no price") +
+                                        " · " + (if (f.full) "brim-full" else "top-up"),
+                                    size = 12.sp, color = C.Faint,
+                                )
+                            }
+                            Txt("+${Fmt.n(f.litres, 1)} L", size = 16.sp, color = C.Green, weight = FontWeight.Medium)
+                        }
+                    }
+                    Txt("Tap an entry to edit or delete it.", size = 11.sp, color = C.Faint)
+                }
+            }
+        }
+
+        // ------------------------------------------------------------ method
+        Panel(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Eyebrow("How this is worked out")
+                Txt("Economy is measured tank to tank. Fill to the brim, note the odometer; at the next brim-full fill, the distance driven divided by every litre added since is your real km/L.", size = 12.sp, color = C.Dim)
+                Txt("Partial top-ups never count on their own. Their litres pool into the next brim-full fill, so 30 L now and 15 L a few days later simply add up with the final fill.", size = 12.sp, color = C.Dim)
+                Txt("Cost uses the price you actually paid on each fill, not one fixed price. Stretches shorter than 40 km, or far off your usual, are left out of the averages and flagged.", size = 12.sp, color = C.Dim)
+                Txt("The first brim-full fill is only a starting point, so economy appears after the second. The gauge is never used for economy.", size = 12.sp, color = C.Dim)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Stat(label: String, value: String, modifier: Modifier = Modifier, color: Color = C.Text) {
+    Column(modifier) {
+        Txt(value, size = 20.sp, weight = FontWeight.Medium, color = color, maxLines = 1)
+        Txt(label, size = 11.sp, color = C.Faint)
+    }
+}
+
+@Composable
+private fun TripCostPanel(d: AppData) {
+    val l = d.insights.ledger
+    var km by remember { mutableStateOf("") }
+    val q = km.toDoubleOrNull()?.let { FuelLedger.quote(it, l) }
+    Panel(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Eyebrow("Trip cost")
+            if (!l.usable) {
+                Txt("Available once the first full-tank stretch is measured.", size = 13.sp, color = C.Dim)
+            } else {
+                Field("Distance (km)", km, { km = cleanNum(it) }, keyboard = KeyboardType.Decimal, hint = "e.g. 120")
+                if (q != null) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Stat("Fuel", "${Fmt.n(q.litres, 1)} L", Modifier.weight(1f))
+                        Stat("Cost", rs(q.cost), Modifier.weight(1f), C.Cyan)
+                    }
+                    if (q.costLow != null && q.costHigh != null) {
+                        Txt("Likely between ${rs(q.costLow)} and ${rs(q.costHigh)}, from your best and worst recent stretch.", size = 12.sp, color = C.Dim)
+                    }
+                } else {
+                    Txt("Uses your recent economy and latest fuel price.", size = 12.sp, color = C.Faint)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FillForm(
+    initial: Fill?,
+    odoDefault: Double?,
+    priceDefault: Double?,
+    tank: Double,
+    onSave: (Fill) -> String?,
+    onDelete: (() -> Unit)?,
+    onCancel: () -> Unit,
+) {
+    val dateFmt = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false } }
+    var date by remember { mutableStateOf(dateFmt.format(java.util.Date(initial?.ts ?: System.currentTimeMillis()))) }
+    var odo by remember { mutableStateOf((initial?.odoKm ?: odoDefault)?.toLong()?.toString() ?: "") }
+    var litres by remember { mutableStateOf(initial?.litres?.let { Fmt.n(it, 2).trimEnd('0').trimEnd('.') } ?: "") }
+    var price by remember { mutableStateOf((initial?.pricePerL ?: priceDefault)?.takeIf { it > 0 }?.let { Fmt.n(it, 2) } ?: "") }
+    var amount by remember { mutableStateOf("") }
+    var full by remember { mutableStateOf(initial?.full ?: true) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Eyebrow(if (initial == null) "New fill-up" else "Edit fill-up")
+        Field("Date (yyyy-mm-dd)", date, { date = it.filter { c -> c.isDigit() || c == '-' }.take(10) })
+        Field("Odometer (km)", odo, { odo = cleanNum(it) }, keyboard = KeyboardType.Number)
+        Field("Litres filled (max ${Fmt.n(tank, 0)})", litres, { litres = cleanNum(it) }, keyboard = KeyboardType.Decimal)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Field("Price per litre ₹", price, { price = cleanNum(it) }, Modifier.weight(1f), keyboard = KeyboardType.Decimal)
+            Field("or amount paid ₹", amount, { amount = cleanNum(it) }, Modifier.weight(1f), keyboard = KeyboardType.Decimal)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Txt("Filled to the brim", size = 15.sp, weight = FontWeight.Medium)
+                Txt(
+                    if (full) "Pump clicked off. Tank to tank economy is measured from here."
+                    else "Partial top-up. Its litres are added to the next brim-full fill.",
+                    size = 12.sp, color = C.Faint,
+                )
+            }
+            Toggle(full, { full = it })
+        }
+        error?.let { Txt(it, size = 13.sp, color = C.RedHi) }
+        PrimaryButton("Save fill-up", {
+            val day = runCatching { dateFmt.parse(date) }.getOrNull()
+            val l = litres.toDoubleOrNull()
+            val o = odo.toDoubleOrNull()
+            when {
+                day == null -> error = "Enter the date as yyyy-mm-dd."
+                l == null || o == null -> error = "Enter litres and odometer."
+                else -> {
+                    val now = System.currentTimeMillis()
+                    val sameDay = dateFmt.format(java.util.Date(now)) == date
+                    val ts = when {
+                        initial != null && dateFmt.format(java.util.Date(initial.ts)) == date -> initial.ts
+                        sameDay -> now
+                        else -> day.time + 12 * 3_600_000L
+                    }
+                    val p = price.toDoubleOrNull() ?: amount.toDoubleOrNull()?.takeIf { l > 0 }?.let { it / l } ?: 0.0
+                    error = onSave(Fill(ts, o, l, p, full))
+                }
+            }
+        })
+        onDelete?.let { GhostButton("Delete this fill-up", it, color = C.RedHi) }
+        GhostButton("Cancel", onCancel, color = C.Dim)
+    }
+}

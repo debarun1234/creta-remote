@@ -296,7 +296,10 @@ class Repository(private val ctx: Context) {
 
     fun signOut() {
         vault.clear()
+        val keptFills = store.kvGet("fills") // the driver's own fill-up ledger survives a sign-out
         store.wipe()
+        keptFills?.let { store.kvPut("fills", it) }
+        fillsCache = null
         session = null
         vehicle = null
         lockOverride = null
@@ -466,8 +469,41 @@ class Repository(private val ctx: Context) {
 
     private fun computeInsights(car: CarState?): FuelInsights {
         val s = _data.value.settings
-        return Analytics.compute(store.snapshots(), car, s, store.days(""))
+        val ledger = FuelLedger.stats(fills(), car?.odometerKm, s.tankLitres, s.fuelPricePerL)
+        return Analytics.compute(store.snapshots(), car, s, store.days(""), ledger)
     }
+
+    // ------------------------------------------------------------------ fill-up ledger
+
+    private var fillsCache: List<Fill>? = null
+
+    private fun fills(): List<Fill> = fillsCache ?: runCatching {
+        val arr = JSONArray(store.kvGet("fills") ?: "[]")
+        (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            Fill(o.getLong("ts"), o.getDouble("odo"), o.getDouble("l"), o.optDouble("p", 0.0), o.optBoolean("full", true))
+        }.sortedBy { it.ts }
+    }.getOrDefault(emptyList()).also { fillsCache = it }
+
+    private fun persistFills(list: List<Fill>) {
+        val arr = JSONArray()
+        for (f in list) arr.put(JSONObject().put("ts", f.ts).put("odo", f.odoKm).put("l", f.litres).put("p", f.pricePerL).put("full", f.full))
+        store.kvPut("fills", arr.toString())
+        fillsCache = list
+        _data.update { it.copy(insights = computeInsights(it.car)) }
+    }
+
+    /** Adds a fill-up, or replaces the one at [replaceTs]. Returns an error message, or null on success. */
+    fun saveFill(f: Fill, replaceTs: Long?): String? {
+        val others = fills().filter { it.ts != replaceTs }
+        validateFill(others, f)?.let { return it }
+        persistFills((others + f).sortedBy { it.ts })
+        return null
+    }
+
+    private fun validateFill(others: List<Fill>, f: Fill): String? = FuelLedger.validate(others, f, _data.value.settings.tankLitres)
+
+    fun deleteFill(ts: Long) = persistFills(fills().filter { it.ts != ts })
 
     /** Called by WorkManager: stores a snapshot using the cheap cloud copy. */
     suspend fun backgroundSnapshot(): Boolean {

@@ -28,12 +28,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.debarun.cretaremote.data.AppData
-import com.debarun.cretaremote.data.FuelInsights
 import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Composable
-fun InsightsScreen(d: AppData, onFuelLimit: (Int) -> Unit, onTyreLog: (List<Double?>) -> Unit) {
+fun InsightsScreen(d: AppData, onFuelLimit: (Int) -> Unit, onTyreLog: (List<Double?>) -> Unit, onFuelLog: () -> Unit) {
     val ins = d.insights
     val car = d.car
     Column(
@@ -68,33 +67,25 @@ fun InsightsScreen(d: AppData, onFuelLimit: (Int) -> Unit, onTyreLog: (List<Doub
             }
         }
 
-        // ---------------------------------------------------------------- efficiency
+        // ---------------------------------------------------------------- economy (from the fill-up log)
         Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Eyebrow("Fuel economy")
-                Row(verticalAlignment = Alignment.Bottom) {
-                    CountUp(ins.kmplUsed, decimals = 1, size = 54.sp, suffix = "km/L")
-                }
+                CountUp(ins.kmplUsed, decimals = 1, size = 54.sp, suffix = "km/L")
                 Txt(
-                    if (ins.kmplUsed != null) "Based on ${ins.usedSource}" else "Needs a little driving history. The app records fuel and odometer every ~15 minutes in the background.",
+                    if (ins.kmplUsed != null) "Based on ${ins.usedSource}"
+                    else "Log your fill-ups and the app measures real economy, tank to tank.",
                     size = 12.sp, color = C.Dim,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ins.kmplRecent?.let { MiniStat("Recent", "${Fmt.n(it, 1)}") }
-                    ins.kmplLifetime?.let { MiniStat("Lifetime", "${Fmt.n(it, 1)}") }
-                    ins.kmplCar?.let { MiniStat("Car est.", "${Fmt.n(it, 1)}") }
-                }
-                if (ins.cycles.size >= 2) {
-                    LineChart(ins.cycles.map { it.kmpl }, Modifier.fillMaxWidth().height(140.dp), C.Cyan)
-                    val f = SimpleDateFormat("d MMM", Locale.getDefault())
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Txt(f.format(ins.cycles.first().endTs), size = 11.sp, color = C.Faint)
-                        Txt("km/L per tank", size = 11.sp, color = C.Faint)
-                        Txt(f.format(ins.cycles.last().endTs), size = 11.sp, color = C.Faint)
+                val l = ins.ledger
+                if (l.usable) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                        ins.costPerKm?.let { MiniStat("₹ per km", Fmt.n(it, 2)) }
+                        ins.costPerDay?.let { MiniStat("₹ per day", Fmt.n(it, 0)) }
+                        l.index?.let { MiniStat("Efficiency index", "$it") }
                     }
-                } else if (ins.kmplUsed != null) {
-                    Txt("The trend chart appears after two completed tank cycles.", size = 12.sp, color = C.Faint)
                 }
+                GhostButton(if (l.fills.isEmpty()) "Start your fuel log" else "Open fuel log", onFuelLog, color = C.Cyan)
             }
         }
 
@@ -115,46 +106,6 @@ fun InsightsScreen(d: AppData, onFuelLimit: (Int) -> Unit, onTyreLog: (List<Doub
                     ins.avgDailyKm?.let { Txt("${Fmt.n(it, 1)} km / day", size = 13.sp, color = C.Dim) }
                 }
                 BarChart(ins.dailyKm.map { (day, km) -> weekdayInitial(day) to km }, Modifier.fillMaxWidth())
-            }
-        }
-
-        // ---------------------------------------------------------------- cost
-        Panel(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Eyebrow("Running cost")
-                if (ins.costPerKm != null) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                        Column {
-                            CountUp(ins.costPerKm, decimals = 1, size = 32.sp, suffix = "₹/km")
-                        }
-                        Column {
-                            CountUp(ins.costPerKm * 100, decimals = 0, size = 32.sp, suffix = "₹/100km")
-                        }
-                    }
-                    ins.costPerDay?.let { Txt("About ₹${Fmt.n(it, 0)} a day at your recent pace", size = 12.sp, color = C.Dim) }
-                } else {
-                    Txt("Set today's fuel price in Settings to see cost per km and per day.", size = 13.sp, color = C.Dim)
-                }
-            }
-        }
-
-        // ---------------------------------------------------------------- fill-ups
-        Panel(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Eyebrow("Fill-ups")
-                if (ins.refuels.isEmpty()) {
-                    Txt("No fill-ups detected yet. One is logged when the fuel level jumps by 8% or more between two readings.", size = 13.sp, color = C.Dim)
-                } else {
-                    ins.refuels.take(8).forEach { r ->
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Txt(dayText(r.ts), size = 14.sp, weight = FontWeight.Medium)
-                                Txt("${Fmt.n(r.fromPct)}% to ${Fmt.n(r.toPct)}%" + (r.odoKm?.let { " · ${Fmt.grouped(it.toLong())} km" } ?: ""), size = 12.sp, color = C.Faint)
-                            }
-                            Txt("+${Fmt.n(r.litres, 1)} L", size = 16.sp, color = C.Green, weight = FontWeight.Medium)
-                        }
-                    }
-                }
             }
         }
     }

@@ -110,9 +110,11 @@ private fun Shell(
     var climate by remember { mutableStateOf(false) }
     var carSheet by remember { mutableStateOf(false) }
     var activity by remember { mutableStateOf(false) }
+    var fuelLog by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
     BackHandler(carSheet) { carSheet = false }
     BackHandler(activity) { activity = false }
+    BackHandler(fuelLog) { fuelLog = false }
     var lockFlash by remember { mutableIntStateOf(0) }
 
     fun act(cmd: Cmd) {
@@ -153,15 +155,18 @@ private fun Shell(
         ) { t ->
             when (Tab.entries[t]) {
                 Tab.HOME -> HomeScreen(data, vm, lockFlash, onAct = ::act, onClimate = { climate = true }, onCar = { carSheet = true }, onActivity = { activity = true })
-                Tab.INSIGHTS -> InsightsScreen(data, onFuelLimit = vm::setFuelLimit, onTyreLog = vm::saveTyreLog)
+                Tab.INSIGHTS -> InsightsScreen(data, onFuelLimit = vm::setFuelLimit, onTyreLog = vm::saveTyreLog, onFuelLog = { fuelLog = true })
                 Tab.TRIPS -> TripsScreen(data, vm)
                 Tab.PLACES -> PlacesScreen(data)
                 Tab.SETTINGS -> SettingsScreen(data, vm)
             }
         }
 
+        AnimatedVisibility(fuelLog, enter = fadeIn(tween(240)) + slideInVertically(tween(320, easing = FastOutSlowInEasing)) { it / 8 }, exit = fadeOut(tween(180))) {
+            FuelLogScreen(data, vm, onClose = { fuelLog = false })
+        }
         CommandBanner(data, vm::cancelCmd, Modifier.align(Alignment.TopCenter))
-        NavBar(tab, { tab = it }, Modifier.align(Alignment.BottomCenter))
+        NavBar(tab, { tab = it; fuelLog = false }, Modifier.align(Alignment.BottomCenter))
 
         AnimatedVisibility(
             climate,

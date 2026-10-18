@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.debarun.cretaremote.data.Cmd
+import com.debarun.cretaremote.data.Fill
 import com.debarun.cretaremote.data.ServiceLog
 import com.debarun.cretaremote.data.Settings
 import kotlinx.coroutines.launch
@@ -22,6 +23,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun saveTyreLog(psi: List<Double?>) = repo.saveTyreLog(psi)
     fun rawForSupport() = repo.rawForSupport()
     fun setFuelLimit(l: Int) = repo.setFuelLimit(l)
+    fun saveFill(f: Fill, replaceTs: Long?): String? = repo.saveFill(f, replaceTs)
+    fun deleteFill(ts: Long) = repo.deleteFill(ts)
     fun ackFuelAlarm() = repo.ackFuelAlarm()
     fun markActivitySeen() = repo.markActivitySeen()
     fun clearActivity() = repo.clearActivity()
