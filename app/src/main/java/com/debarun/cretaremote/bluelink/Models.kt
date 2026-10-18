@@ -29,6 +29,20 @@ data class Quad(val fl: Boolean = false, val fr: Boolean = false, val rl: Boolea
     val any get() = fl || fr || rl || rr
 }
 
+/** Short text for widgets and chips: "34 · 34 · 33 · 33 psi", "Low: FL RR", "Check pressure", "OK" or "Not reported". */
+fun CarState.tyreSummary(): String {
+    val low = listOfNotNull("FL".takeIf { tyreWarn.fl }, "FR".takeIf { tyreWarn.fr }, "RL".takeIf { tyreWarn.rl }, "RR".takeIf { tyreWarn.rr })
+    return when {
+        !tyreReported -> "Not reported"
+        low.isNotEmpty() -> "Low: " + low.joinToString(" ")
+        tyreWarnAny -> "Check pressure"
+        tyrePsi.all { it != null } -> tyrePsi.joinToString(" · ") { "${it!!.toInt()}" } + " psi"
+        else -> "OK"
+    }
+}
+
+val CarState.tyreAttention: Boolean get() = tyreWarn.any || tyreWarnAny
+
 /** Everything the app shows about the car at one instant. Nullable = Bluelink did not report it. */
 data class CarState(
     val updatedAt: Long? = null,
@@ -48,6 +62,10 @@ data class CarState(
     val setTempC: Double? = null,
     val tyreWarn: Quad = Quad(),
     val tyreWarnAny: Boolean = false,
+    /** Pressure in psi per wheel (FL, FR, RL, RR) when the car reports numbers; null per wheel otherwise. */
+    val tyrePsi: List<Double?> = listOf(null, null, null, null),
+    /** False when Bluelink sent neither pressure numbers nor warning lamps, so "OK" would be a guess. */
+    val tyreReported: Boolean = false,
     val headlampsOn: Boolean = false,
     val washerLow: Boolean = false,
     val brakeFluidLow: Boolean = false,
@@ -169,6 +187,30 @@ object StateParser {
             lamp.obj("tirePressureLampRR").flag() ?: false,
         )
 
+        // numeric pressure, if this car sends it: key names vary by model, units by firmware (psi, bar or kPa)
+        fun psi(vararg keys: String): Double? {
+            for (k in keys) {
+                val raw = status.deep(k)
+                val v = (if (raw is JSONObject) raw.opt("value") else raw).num() ?: continue
+                return when {
+                    v in 0.5..6.0 -> v * 14.5038      // bar
+                    v in 10.0..80.0 -> v              // psi
+                    v in 80.0..600.0 -> v * 0.145038  // kPa
+                    else -> null
+                }
+            }
+            return null
+        }
+        val press = status.deep("tirePressure")
+        fun psiOf(vararg keys: String, nested: List<String>): Double? =
+            psi(*keys) ?: nested.firstNotNullOfOrNull { n -> press.obj(n).let { (if (it is JSONObject) it.opt("value") else it).num() } }
+        val tyrePsi = listOf(
+            psiOf("tirePressureFL", "tirePressureFrontLeft", "frontLeftTirePressure", "tyrePressureFL", "tirePressureValueFL", nested = listOf("frontLeft", "fl", "FL")),
+            psiOf("tirePressureFR", "tirePressureFrontRight", "frontRightTirePressure", "tyrePressureFR", "tirePressureValueFR", nested = listOf("frontRight", "fr", "FR")),
+            psiOf("tirePressureRL", "tirePressureRearLeft", "rearLeftTirePressure", "tyrePressureRL", "tirePressureValueRL", nested = listOf("rearLeft", "backLeft", "rl", "RL")),
+            psiOf("tirePressureRR", "tirePressureRearRight", "rearRightTirePressure", "tyrePressureRR", "tirePressureValueRR", nested = listOf("rearRight", "backRight", "rr", "RR")),
+        )
+
         val odo = (maint.deep("odometer").let { if (it is JSONObject) it.opt("value") else it }).num()
             ?: status.deep("odometer").let { if (it is JSONObject) it.opt("value") else it }.num()
 
@@ -199,6 +241,8 @@ object StateParser {
             setTempC = setTemp,
             tyreWarn = tyre,
             tyreWarnAny = lamp.obj("tirePressureLampAll").flag() ?: false,
+            tyrePsi = tyrePsi,
+            tyreReported = lamp != null || tyrePsi.any { it != null },
             headlampsOn = headLamp.obj("headLampStatus").flag() ?: false,
             washerLow = status.deep("washerFluidStatus").flag() ?: false,
             brakeFluidLow = status.deep("breakOilStatus").flag() ?: false,

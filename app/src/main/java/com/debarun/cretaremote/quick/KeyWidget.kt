@@ -12,6 +12,8 @@ import com.debarun.cretaremote.CretaApp
 import com.debarun.cretaremote.MainActivity
 import com.debarun.cretaremote.R
 import com.debarun.cretaremote.bluelink.CarState
+import com.debarun.cretaremote.bluelink.tyreAttention
+import com.debarun.cretaremote.bluelink.tyreSummary
 import com.debarun.cretaremote.data.Cmd
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -103,6 +105,8 @@ class StatusWidget : CarWidget() {
         v.setTextViewText(R.id.s_odo, s.odo?.let { "${nf.format(it.toInt())} km" } ?: "--")
         v.setProgressBar(R.id.s_bar, 100, (s.fuel ?: 0.0).toInt().coerceIn(0, 100), false)
         v.setTextViewText(R.id.s_ago, if (s.ts > 0) "Updated ${com.debarun.cretaremote.ui.agoText(s.ts)}" else "Open the app to sync")
+        v.setTextViewText(R.id.s_tyre, if (s.tyre.isBlank()) "Tyres --" else "Tyres ${s.tyre}")
+        v.setTextColor(R.id.s_tyre, if (s.tyreWarn) 0xFFFFB020.toInt() else st.dim)
         for (id in listOf(R.id.s_title, R.id.s_fuel, R.id.s_range, R.id.s_odo)) v.setTextColor(id, st.text)
         for (id in listOf(R.id.s_fuel_l, R.id.s_range_l, R.id.s_odo_l, R.id.s_ago)) v.setTextColor(id, st.dim)
         v.setOnClickPendingIntent(R.id.w_root, Widgets.open(c, "HOME"))
@@ -184,7 +188,7 @@ object Widgets {
 object WidgetState {
     data class S(
         val locked: Boolean?, val engine: Boolean, val fuel: Double?, val dte: Double?, val odo: Double?,
-        val ts: Long, val title: String,
+        val ts: Long, val title: String, val tyre: String, val tyreWarn: Boolean,
     )
 
     private fun prefs(c: Context) = c.getSharedPreferences("widget", Context.MODE_PRIVATE)
@@ -195,6 +199,7 @@ object WidgetState {
         return S(
             if (p.contains("locked")) p.getBoolean("locked", true) else null,
             p.getBoolean("engine", false), d("fuel"), d("dte"), d("odo"), p.getLong("ts", 0L), p.getString("title", "") ?: "",
+            p.getString("tyre", "") ?: "", p.getBoolean("tyreWarn", false),
         )
     }
 
@@ -208,6 +213,8 @@ object WidgetState {
             car.odometerKm?.let { putFloat("odo", it.toFloat()) } ?: remove("odo")
             putLong("ts", car.updatedAt ?: System.currentTimeMillis())
             putString("title", title)
+            putString("tyre", car.tyreSummary())
+            putBoolean("tyreWarn", car.tyreAttention)
         }.apply()
         Widgets.updateAll(c)
     }

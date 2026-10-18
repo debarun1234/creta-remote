@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.sp
 import com.debarun.cretaremote.AppViewModel
 import com.debarun.cretaremote.bluelink.CarState
 import com.debarun.cretaremote.data.AppData
+import com.debarun.cretaremote.bluelink.tyreAttention
 import com.debarun.cretaremote.data.Cmd
 import com.debarun.cretaremote.data.Link
 import com.debarun.cretaremote.data.Settings
@@ -176,6 +177,9 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
             }
         }
 
+        // ------------------------------------------------------------- tyres
+        TyrePanel(car)
+
         // ------------------------------------------------------------- 12V + today
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             val today = d.insights.dailyKm.lastOrNull()?.second
@@ -252,7 +256,11 @@ private fun healthRows(car: CarState?): List<Health> {
         car.trunkOpen -> Health("Hood / boot", "Boot open", 1)
         else -> Health("Hood / boot", "Closed", 0)
     }
-    rows += if (car.tyreWarnAny || car.tyreWarn.any) Health("Tyres", "Check pressure", 1) else Health("Tyres", "Pressure OK", 0)
+    rows += when {
+        !car.tyreReported -> Health("Tyres", "Not reported", 2)
+        car.tyreAttention -> Health("Tyres", "Check pressure", 1)
+        else -> Health("Tyres", "Pressure OK", 0)
+    }
     rows += when {
         car.brakeFluidLow -> Health("Fluids", "Brake fluid low", 1)
         car.washerLow -> Health("Fluids", "Washer low", 1)

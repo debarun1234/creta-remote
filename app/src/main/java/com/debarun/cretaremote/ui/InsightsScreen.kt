@@ -101,6 +101,9 @@ fun InsightsScreen(d: AppData, onFuelLimit: (Int) -> Unit) {
         // ---------------------------------------------------------------- fuel alert
         FuelAlertCard(d.settings.fuelLimitL, d.fuel.litres ?: ins.litresLeft, d.fuel.stage, onFuelLimit)
 
+        // ---------------------------------------------------------------- tyres
+        TyrePanel(car)
+
         // ---------------------------------------------------------------- distance
         Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
