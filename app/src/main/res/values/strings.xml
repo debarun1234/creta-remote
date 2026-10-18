@@ -9,4 +9,5 @@
     <string name="tile_lights">Creta lights</string>
     <string name="tile_boot">Open Creta boot</string>
     <string name="widget_desc">Lock, lights, unlock and boot</string>
+    <string name="tile_start">Start Creta</string>
 </resources>

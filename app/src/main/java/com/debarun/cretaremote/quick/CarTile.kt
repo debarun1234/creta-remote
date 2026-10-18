@@ -85,6 +85,12 @@ class BootTile : CarTile() {
     override val needsDeviceUnlock = true
 }
 
+class StartTile : CarTile() {
+    override val cmd = Cmd.START
+    override val idleLabel = "Start Creta"
+    override val needsDeviceUnlock = true
+}
+
 class UnlockTile : CarTile() {
     override val cmd = Cmd.UNLOCK
     override val idleLabel = "Unlock Creta"

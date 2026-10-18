@@ -136,22 +136,16 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
         LockSlider(car?.locked, busy = lockBusy, onToggle = { onAct(if (car?.locked == false) Cmd.LOCK else Cmd.UNLOCK) })
 
         // ------------------------------------------------------------- controls
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (car?.engineOn == true) {
-                    ActionTile(Icons.Rounded.PowerSettingsNew, "Stop", Modifier.weight(1f), C.Amber, busy = d.cmd.busy && d.cmd.cmd == Cmd.STOP) { onAct(Cmd.STOP) }
-                } else {
-                    ActionTile(Icons.Rounded.Thermostat, "Climate", Modifier.weight(1f), C.Cyan, busy = d.cmd.busy && d.cmd.cmd == Cmd.START) { onClimate() }
-                }
-                ActionTile(Icons.Rounded.Lightbulb, "Lights", Modifier.weight(1f), C.Amber, busy = d.cmd.busy && d.cmd.cmd == Cmd.LIGHTS) { onAct(Cmd.LIGHTS) }
-                ActionTile(Icons.Rounded.Campaign, "Horn", Modifier.weight(1f), C.Red, busy = d.cmd.busy && d.cmd.cmd == Cmd.HORN) { onAct(Cmd.HORN) }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ActionTile(CarBootIcon, "Boot", Modifier.weight(1f), C.Green, busy = d.cmd.busy && d.cmd.cmd == Cmd.BOOT) { onAct(Cmd.BOOT) }
-                ActionTile(Icons.Rounded.Navigation, "Navigate", Modifier.weight(1f), C.Green, enabled = car?.lat != null) { openMaps(true) }
-                ActionTile(Icons.Rounded.Bolt, "Sync live", Modifier.weight(1f), C.Amber, busy = d.refreshing) { vm.refresh(true) }
-            }
-        }
+        KeyFob(
+            engineOn = car?.engineOn == true,
+            cmd = d.cmd,
+            navEnabled = car?.lat != null,
+            syncing = d.refreshing,
+            onAct = onAct,
+            onClimate = onClimate,
+            onNavigate = { openMaps(true) },
+            onSync = { vm.refresh(true) },
+        )
 
         d.error?.let { ErrorCard(it) { vm.refresh(false) } }
 
