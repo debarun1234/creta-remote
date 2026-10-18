@@ -33,7 +33,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Composable
-fun InsightsScreen(d: AppData, onFuelLimit: (Int) -> Unit) {
+fun InsightsScreen(d: AppData, onFuelLimit: (Int) -> Unit, onTyreLog: (List<Double?>) -> Unit) {
     val ins = d.insights
     val car = d.car
     Column(
@@ -102,7 +102,7 @@ fun InsightsScreen(d: AppData, onFuelLimit: (Int) -> Unit) {
         FuelAlertCard(d.settings.fuelLimitL, d.fuel.litres ?: ins.litresLeft, d.fuel.stage, onFuelLimit)
 
         // ---------------------------------------------------------------- tyres
-        TyrePanel(car)
+        TyrePanel(car, d.tyreLog, onTyreLog)
 
         // ---------------------------------------------------------------- distance
         Panel(Modifier.fillMaxWidth()) {

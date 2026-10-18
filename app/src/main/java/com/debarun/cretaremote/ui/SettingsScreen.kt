@@ -117,6 +117,19 @@ fun SettingsScreen(d: AppData, vm: AppViewModel) {
             }
         }
 
+        Panel(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Eyebrow("Diagnostics")
+                Txt("Copies exactly what Bluelink sent for your car (status and maintenance, no location) so you can see which fields it reports, such as tyre pressure numbers.", size = 12.sp, color = C.Dim)
+                val clip = androidx.compose.ui.platform.LocalClipboardManager.current
+                var copied by remember { mutableStateOf<Boolean?>(null) }
+                PrimaryButton(
+                    when (copied) { true -> "Copied"; false -> "Nothing to copy yet - sync first"; null -> "Copy raw car data" },
+                    { val t = vm.rawForSupport(); copied = t != null; if (t != null) clip.setText(androidx.compose.ui.text.AnnotatedString(t)) },
+                )
+            }
+        }
+
         PermissionsPanel(d, vm)
 
         Panel(Modifier.fillMaxWidth()) {

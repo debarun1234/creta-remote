@@ -157,6 +157,42 @@ internal fun parseBluelinkTime(v: Any?): Long? {
     }
 }
 
+/** Bar, psi or kPa to psi; null when it is not a plausible tyre pressure. */
+internal fun normalisePsi(v: Double): Double? = when {
+    v in 0.5..6.0 -> v * 14.5038
+    v in 10.0..80.0 -> v
+    v in 80.0..600.0 -> v * 0.145038
+    else -> null
+}
+
+private val TYRE_KEY = Regex("tire|tyre")
+private val PRESS_KEY = Regex("press|psi|kpa")
+private val NOT_PRESSURE = Regex("lamp|warn|unit|status|flag|time")
+private val WHEEL_KEYS = listOf(
+    Regex("front.?left|\\bfl\\b|fl$"), Regex("front.?right|\\bfr\\b|fr$"),
+    Regex("(rear|back).?left|\\brl\\b|rl$"), Regex("(rear|back).?right|\\brr\\b|rr$"),
+)
+
+/** Walks the whole payload for numeric leaves whose key path names a tyre and a pressure, and files them by wheel. */
+internal fun scanPressure(root: Any?): List<Double?> {
+    val out = arrayOfNulls<Double>(4)
+    fun visit(path: String, n: Any?) {
+        when (n) {
+            is JSONObject -> n.keys().forEach { k -> visit("$path.$k", n.opt(k)) }
+            is JSONArray -> for (i in 0 until n.length()) visit("$path.$i", n.opt(i))
+            else -> {
+                val v = n.num() ?: return
+                val p = path.lowercase()
+                if (!TYRE_KEY.containsMatchIn(p) || !PRESS_KEY.containsMatchIn(p) || NOT_PRESSURE.containsMatchIn(p)) return
+                val i = WHEEL_KEYS.indexOfFirst { it.containsMatchIn(p) }
+                if (i >= 0 && out[i] == null) out[i] = normalisePsi(v)
+            }
+        }
+    }
+    visit("", root)
+    return out.toList()
+}
+
 object StateParser {
     /** Merges the status, parked-location and maintenance responses into one [CarState]. */
     fun parse(status: JSONObject?, loc: JSONObject?, maint: JSONObject?): CarState {
@@ -192,24 +228,22 @@ object StateParser {
             for (k in keys) {
                 val raw = status.deep(k)
                 val v = (if (raw is JSONObject) raw.opt("value") else raw).num() ?: continue
-                return when {
-                    v in 0.5..6.0 -> v * 14.5038      // bar
-                    v in 10.0..80.0 -> v              // psi
-                    v in 80.0..600.0 -> v * 0.145038  // kPa
-                    else -> null
-                }
+                normalisePsi(v)?.let { return it }
             }
             return null
         }
         val press = status.deep("tirePressure")
         fun psiOf(vararg keys: String, nested: List<String>): Double? =
-            psi(*keys) ?: nested.firstNotNullOfOrNull { n -> press.obj(n).let { (if (it is JSONObject) it.opt("value") else it).num() } }
-        val tyrePsi = listOf(
+            psi(*keys) ?: nested.firstNotNullOfOrNull { n -> press.obj(n).let { (if (it is JSONObject) it.opt("value") else it).num() }?.let(::normalisePsi) }
+        val named = listOf(
             psiOf("tirePressureFL", "tirePressureFrontLeft", "frontLeftTirePressure", "tyrePressureFL", "tirePressureValueFL", nested = listOf("frontLeft", "fl", "FL")),
             psiOf("tirePressureFR", "tirePressureFrontRight", "frontRightTirePressure", "tyrePressureFR", "tirePressureValueFR", nested = listOf("frontRight", "fr", "FR")),
             psiOf("tirePressureRL", "tirePressureRearLeft", "rearLeftTirePressure", "tyrePressureRL", "tirePressureValueRL", nested = listOf("rearLeft", "backLeft", "rl", "RL")),
             psiOf("tirePressureRR", "tirePressureRearRight", "rearRightTirePressure", "tyrePressureRR", "tirePressureValueRR", nested = listOf("rearRight", "backRight", "rr", "RR")),
         )
+        // anything the named keys missed: look through the whole payload for a tyre + pressure number
+        val scanned = if (named.all { it != null }) named else scanPressure(status)
+        val tyrePsi = named.mapIndexed { i, v -> v ?: scanned[i] }
 
         val odo = (maint.deep("odometer").let { if (it is JSONObject) it.opt("value") else it }).num()
             ?: status.deep("odometer").let { if (it is JSONObject) it.opt("value") else it }.num()

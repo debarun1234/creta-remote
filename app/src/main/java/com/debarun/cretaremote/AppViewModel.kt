@@ -19,6 +19,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh(live: Boolean) { viewModelScope.launch { repo.refresh(live) } }
     fun run(cmd: Cmd) { viewModelScope.launch { repo.run(cmd) } }
     fun cancelCmd() = repo.cancelCmd()
+    fun saveTyreLog(psi: List<Double?>) = repo.saveTyreLog(psi)
+    fun rawForSupport() = repo.rawForSupport()
     fun setFuelLimit(l: Int) = repo.setFuelLimit(l)
     fun ackFuelAlarm() = repo.ackFuelAlarm()
     fun markActivitySeen() = repo.markActivitySeen()

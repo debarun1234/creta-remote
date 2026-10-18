@@ -6,6 +6,8 @@ import com.debarun.cretaremote.bluelink.ActionResult
 import com.debarun.cretaremote.bluelink.BluelinkClient
 import com.debarun.cretaremote.bluelink.BluelinkException
 import com.debarun.cretaremote.bluelink.CarState
+import com.debarun.cretaremote.bluelink.tyreAttention
+import com.debarun.cretaremote.bluelink.tyreSummary
 import com.debarun.cretaremote.bluelink.Session
 import com.debarun.cretaremote.bluelink.StateParser
 import com.debarun.cretaremote.bluelink.TripEntry
@@ -54,6 +56,9 @@ data class CmdUi(val cmd: Cmd? = null, val phase: Phase = Phase.IDLE, val messag
 
 data class TripMonthUi(val yyyymm: String, val summary: TripSummary?, val days: List<DayRow>, val note: String? = null)
 
+/** Tyre pressures the driver read off the dashboard or a pump and logged by hand (psi per wheel, FL FR RL RR). */
+data class TyreLog(val ts: Long, val psi: List<Double?>)
+
 /** What we know about the car's modem: it sleeps to save the battery and has to be woken before it will act. */
 enum class Link { UNKNOWN, WAKING, AWAKE, ASLEEP }
 
@@ -81,6 +86,7 @@ data class AppData(
     val link: Link = Link.UNKNOWN,
     val linkAt: Long? = null,
     val fuel: FuelWatchUi = FuelWatchUi(),
+    val tyreLog: TyreLog? = null,
 )
 
 fun DayRow.entries(): List<TripEntry> = try {
@@ -147,6 +153,7 @@ class Repository(private val ctx: Context) {
                     services = loadServices(),
                     activity = loadActivity(),
                     activityUnread = loadActivity().count { a -> a.ts > activitySeen },
+                    tyreLog = loadTyreLog(),
                     fuel = FuelWatchUi(store.kvGet("fw")?.let { runCatching { JSONObject(it).optInt("stage", 0) }.getOrNull() } ?: 0, litresOf(car)),
                 )
             }
@@ -380,7 +387,7 @@ class Repository(private val ctx: Context) {
         if (lat != null && lon != null) recordPlace(lat, lon, car.locTime ?: now)
         checkAlerts(car, now)
         evaluateFuel(car, fromFetch = true)
-        com.debarun.cretaremote.quick.WidgetState.save(ctx, car, _data.value.settings.carTitle())
+        com.debarun.cretaremote.quick.WidgetState.save(ctx, car, _data.value.settings.carTitle(), tyreLine(car))
 
         _data.update {
             it.copy(
@@ -578,6 +585,37 @@ class Repository(private val ctx: Context) {
                 Unit
             }
         }
+    }
+
+    // ------------------------------------------------------------------ tyre pressure
+
+    private fun loadTyreLog(): TyreLog? = runCatching {
+        val o = JSONObject(store.kvGet("tyre_log") ?: return null)
+        val a = o.getJSONArray("psi")
+        TyreLog(o.getLong("ts"), (0 until 4).map { if (a.isNull(it)) null else a.getDouble(it) })
+    }.getOrNull()
+
+    /** The driver's own reading, for cars whose Bluelink data has no pressure numbers. */
+    fun saveTyreLog(psi: List<Double?>) {
+        val log = TyreLog(System.currentTimeMillis(), psi)
+        store.kvPut("tyre_log", JSONObject().put("ts", log.ts).put("psi", JSONArray().apply { psi.forEach { put(it ?: JSONObject.NULL) } }).toString())
+        _data.update { it.copy(tyreLog = log) }
+        _data.value.car?.let { com.debarun.cretaremote.quick.WidgetState.saveTyre(ctx, tyreLine(it), it.tyreAttention) }
+    }
+
+    /** Widget text: the car's own numbers if it sends them, else a low-tyre warning, else the driver's last logged numbers. */
+    fun tyreLine(car: CarState): String {
+        val log = _data.value.tyreLog
+        return when {
+            car.tyrePsi.all { it != null } || car.tyreAttention || log == null -> car.tyreSummary()
+            else -> log.psi.joinToString(" · ") { it?.toInt()?.toString() ?: "-" } + " psi"
+        }
+    }
+
+    /** Status and maintenance exactly as Bluelink sent them (no location), for working out what this car reports. */
+    fun rawForSupport(): String? {
+        val raw = store.kvGet("raw")?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return null
+        return JSONObject().put("status", raw.opt("status")).put("maint", raw.opt("maint")).toString(2)
     }
 
     // ------------------------------------------------------------------ fuel limit

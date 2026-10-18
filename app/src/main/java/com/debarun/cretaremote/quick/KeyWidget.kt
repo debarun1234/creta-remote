@@ -13,7 +13,6 @@ import com.debarun.cretaremote.MainActivity
 import com.debarun.cretaremote.R
 import com.debarun.cretaremote.bluelink.CarState
 import com.debarun.cretaremote.bluelink.tyreAttention
-import com.debarun.cretaremote.bluelink.tyreSummary
 import com.debarun.cretaremote.data.Cmd
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -204,7 +203,7 @@ object WidgetState {
     }
 
     /** Called after every fetch. */
-    fun save(c: Context, car: CarState, title: String) {
+    fun save(c: Context, car: CarState, title: String, tyre: String) {
         prefs(c).edit().apply {
             if (car.locked == null) remove("locked") else putBoolean("locked", car.locked)
             putBoolean("engine", car.engineOn == true)
@@ -213,9 +212,14 @@ object WidgetState {
             car.odometerKm?.let { putFloat("odo", it.toFloat()) } ?: remove("odo")
             putLong("ts", car.updatedAt ?: System.currentTimeMillis())
             putString("title", title)
-            putString("tyre", car.tyreSummary())
+            putString("tyre", tyre)
             putBoolean("tyreWarn", car.tyreAttention)
         }.apply()
+        Widgets.updateAll(c)
+    }
+
+    fun saveTyre(c: Context, line: String, warn: Boolean) {
+        prefs(c).edit().putString("tyre", line).putBoolean("tyreWarn", warn).apply()
         Widgets.updateAll(c)
     }
 

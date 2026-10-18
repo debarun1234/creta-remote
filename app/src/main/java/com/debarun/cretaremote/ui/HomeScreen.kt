@@ -178,7 +178,7 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
         }
 
         // ------------------------------------------------------------- tyres
-        TyrePanel(car)
+        TyrePanel(car, d.tyreLog, vm::saveTyreLog)
 
         // ------------------------------------------------------------- 12V + today
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
