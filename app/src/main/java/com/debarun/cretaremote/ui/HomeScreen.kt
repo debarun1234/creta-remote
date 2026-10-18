@@ -42,7 +42,6 @@ import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Thermostat
-import androidx.compose.material.icons.rounded.Work
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -148,7 +147,7 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
                 ActionTile(Icons.Rounded.Campaign, "Horn", Modifier.weight(1f), C.Red, busy = d.cmd.busy && d.cmd.cmd == Cmd.HORN) { onAct(Cmd.HORN) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ActionTile(Icons.Rounded.Work, "Boot", Modifier.weight(1f), C.Green, busy = d.cmd.busy && d.cmd.cmd == Cmd.BOOT) { onAct(Cmd.BOOT) }
+                ActionTile(CarBootIcon, "Boot", Modifier.weight(1f), C.Green, busy = d.cmd.busy && d.cmd.cmd == Cmd.BOOT) { onAct(Cmd.BOOT) }
                 ActionTile(Icons.Rounded.Navigation, "Navigate", Modifier.weight(1f), C.Green, enabled = car?.lat != null) { openMaps(true) }
                 ActionTile(Icons.Rounded.Bolt, "Sync live", Modifier.weight(1f), C.Amber, busy = d.refreshing) { vm.refresh(true) }
             }
