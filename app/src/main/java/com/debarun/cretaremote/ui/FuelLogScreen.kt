@@ -322,7 +322,8 @@ fun TripCostPanel(d: AppData, compact: Boolean = false) {
                 }
 
                 Field("Plan a trip (km)", km, { km = cleanNum(it) }, keyboard = KeyboardType.Decimal, hint = "e.g. 120")
-                if (q != null && tripKm != null) {
+                if (q != null) {
+                    val tk = tripKm ?: 0.0
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Stat("Fuel for the trip", "${Fmt.n(q.litres, 1)} L", Modifier.weight(1f))
                         Stat("Cost", rs(q.cost), Modifier.weight(1f), C.Cyan)
@@ -341,7 +342,7 @@ fun TripCostPanel(d: AppData, compact: Boolean = false) {
                                 size = 13.sp, color = C.Amber,
                             )
                             else -> Txt(
-                                "About ${Fmt.n(after, 1)} L left when you arrive" + (odo?.let { ", at odometer ${Fmt.grouped((it + tripKm).toLong())} km" } ?: "") +
+                                "About ${Fmt.n(after, 1)} L left when you arrive" + (odo?.let { ", at odometer ${Fmt.grouped((it + tk).toLong())} km" } ?: "") +
                                     ". Then about ${Fmt.n(kmAfter, 0)} km more before your $limit L limit.",
                                 size = 13.sp, color = C.Green,
                             )
