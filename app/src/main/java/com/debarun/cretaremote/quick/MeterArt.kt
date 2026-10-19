@@ -38,6 +38,8 @@ class MeterData(
     val warn: List<Boolean> = List(4) { false },
     val tyreReported: Boolean = false,
     val tyreWarnAny: Boolean = false,
+    /** 0 idle, 1 syncing, 2 last sync failed: only changes the refresh button. */
+    val sync: Int = 0,
 )
 
 /**
@@ -51,6 +53,9 @@ object MeterArt {
     private const val AMBER = 0xFFFFB020.toInt()
     private const val GREEN = 0xFF36E39A.toInt()
     private val nf: NumberFormat = NumberFormat.getIntegerInstance(Locale("en", "IN"))
+
+    /** Width kept free for the refresh button: a strip loses it on the right, the other looks keep their top-right corner clear. */
+    private const val BTN_W = 26f
 
     enum class Shape { RING, STRIP, SPLIT, STACK }
 
@@ -157,7 +162,7 @@ object MeterArt {
         val frac = ((d.fuelPct ?: 0.0) / 100.0).toFloat()
         when (shapeOf(w, h)) {
             Shape.RING -> {
-                val r = min(w, h) / 2f - 14f
+                val r = min(w, h) / 2f - 22f
                 val cx = w / 2f
                 val cy = h / 2f - 2f
                 arc(cv, cx, cy, r, r * 0.17f, frac, col, c)
@@ -166,14 +171,15 @@ object MeterArt {
             }
             Shape.STRIP -> {
                 val pad = 14f
-                val showRange = w >= 170f
+                val ew = w - BTN_W
+                val showRange = ew >= 160f
                 txt(cv, pct(d.fuelPct), pad, h / 2f + 8f, min(h * 0.38f, 24f), col, true)
                 val bx = pad + min(h * 0.38f, 24f) * 2.1f
                 val rw = if (showRange) 70f else 0f
-                bar(cv, bx, h / 2f - 5f, w - bx - pad - rw - (if (showRange) 8f else 0f), 10f, frac, col, c, (d.limit / d.tank).toFloat())
+                bar(cv, bx, h / 2f - 5f, ew - bx - pad - rw - (if (showRange) 8f else 0f), 10f, frac, col, c, (d.limit / d.tank).toFloat())
                 if (showRange) {
-                    txt(cv, d.dteKm?.let { "${nf.format(it.roundToInt())}" } ?: "--", w - pad, h / 2f + 3f, 17f, c.text, true, Paint.Align.RIGHT, rw)
-                    txt(cv, "km range", w - pad, h / 2f + 16f, 10f, c.dim, false, Paint.Align.RIGHT)
+                    txt(cv, d.dteKm?.let { "${nf.format(it.roundToInt())}" } ?: "--", ew - pad, h / 2f + 3f, 17f, c.text, true, Paint.Align.RIGHT, rw)
+                    txt(cv, "km range", ew - pad, h / 2f + 16f, 10f, c.dim, false, Paint.Align.RIGHT)
                 }
             }
             Shape.SPLIT -> {
@@ -184,7 +190,7 @@ object MeterArt {
                 txt(cv, pct(d.fuelPct), cx, cy + r * 0.2f, r * 0.55f, c.text, true, Paint.Align.CENTER, r * 1.3f)
                 txt(cv, "FUEL", cx, cy + r * 0.98f, 10f, c.dim, false, Paint.Align.CENTER)
                 val x = cx + r + 22f
-                val cw = w - x - 14f
+                val cw = w - x - 14f - BTN_W
                 val rows = listOf("RANGE" to km(d.dteKm), "IN TANK" to (d.litres?.let { "${"%.1f".format(Locale.US, it)} L" } ?: "--"), "ODOMETER" to km(d.odoKm))
                 val step = (h - 22f) / rows.size
                 rows.forEachIndexed { i, (l, v) ->
@@ -194,7 +200,7 @@ object MeterArt {
                 }
             }
             Shape.STACK -> {
-                val r = min(w / 2f - 18f, h * 0.36f)
+                val r = min(w / 2f - 24f, h * 0.36f)
                 val cx = w / 2f
                 val cy = 16f + r
                 arc(cv, cx, cy, r, r * 0.16f, frac, col, c)
@@ -236,13 +242,13 @@ object MeterArt {
         val state = when (d.locked) { true -> "Locked"; false -> "Unlocked"; null -> "Status unknown" } + if (d.engine) " · Engine on" else ""
         val stateCol = when (d.locked) { true -> GREEN; false -> AMBER; null -> c.dim }
         when (shapeOf(w, h)) {
-            Shape.RING -> rings(w / 2f, h / 2f, min(w, h) / 2f - 14f)
+            Shape.RING -> rings(w / 2f, h / 2f, min(w, h) / 2f - 22f)
             Shape.STRIP -> {
                 val pad = 14f
                 txt(cv, d.dteKm?.let { nf.format(it.roundToInt()) } ?: "--", pad, h / 2f + 8f, 22f, c.text, true)
                 txt(cv, "km", pad + 52f, h / 2f + 8f, 11f, c.dim)
                 val bx = pad + 84f
-                val bw = w - bx - pad
+                val bw = w - BTN_W - bx - pad
                 txt(cv, "FUEL ${pct(d.fuelPct)}", bx, h / 2f - 8f, 9.5f, c.dim, true, maxW = bw)
                 bar(cv, bx, h / 2f - 4f, bw, 6f, ff, fCol, c)
                 txt(cv, "12V ${d.battPct?.let { "$it%" } ?: "--"}", bx, h / 2f + 18f, 9.5f, c.dim, true, maxW = bw)
@@ -252,7 +258,7 @@ object MeterArt {
                 val r = h / 2f - 14f
                 rings(r + 16f, h / 2f, r)
                 val x = 2f * r + 40f
-                val cw = w - x - 14f
+                val cw = w - x - 14f - BTN_W
                 txt(cv, d.title.ifBlank { "Creta" }, x, 26f, 14f, c.text, true, maxW = cw)
                 txt(cv, state, x, 44f, 11f, stateCol, true, maxW = cw)
                 val y = h / 2f + 10f
@@ -261,7 +267,7 @@ object MeterArt {
                 if (h > 120f) txt(cv, km(d.odoKm), x, h - 14f, 11f, c.dim, false, maxW = cw)
             }
             Shape.STACK -> {
-                val r = min(w / 2f - 20f, h * 0.34f)
+                val r = min(w / 2f - 26f, h * 0.34f)
                 rings(w / 2f, 18f + r, r)
                 var y = 18f + 2f * r + 24f
                 txt(cv, state, w / 2f, y, 13f, stateCol, true, Paint.Align.CENTER, w - 28f)
@@ -292,17 +298,18 @@ object MeterArt {
         val cost = d.costPerKm?.let { "₹${"%.2f".format(Locale.US, it)}/km" } ?: "--"
         when (shapeOf(w, h)) {
             Shape.RING -> {
-                val r = min(w, h) / 2f - 14f
+                val r = min(w, h) / 2f - 22f
                 ring(cv, w / 2f, h / 2f, r, r * 0.15f, frac, col, c)
                 txt(cv, big, w / 2f, h / 2f + r * 0.14f, r * 0.45f, c.text, true, Paint.Align.CENTER, r * 1.2f)
                 txt(cv, sub, w / 2f, h / 2f + r * 0.46f, max(8f, r * 0.19f), c.dim, false, Paint.Align.CENTER, r * 1.2f)
             }
             Shape.STRIP -> {
                 val pad = 14f
+                val ew = w - BTN_W
                 txt(cv, "FILL UP AT", pad, h / 2f - 8f, 9.5f, c.dim, true)
-                txt(cv, fillAt, pad, h / 2f + 12f, 17f, c.text, true, maxW = w * 0.45f)
-                val bx = pad + min(w * 0.45f, 120f) + 12f
-                val bw = w - bx - pad
+                txt(cv, fillAt, pad, h / 2f + 12f, 17f, c.text, true, maxW = ew * 0.45f)
+                val bx = pad + min(ew * 0.45f, 120f) + 12f
+                val bw = ew - bx - pad
                 if (bw > 40f) {
                     txt(cv, if (kmLeft != null && kmLeft > 0.5) "in ${nf.format(kmLeft.roundToInt())} km" else "now", bx, h / 2f - 8f, 10.5f, col, true, maxW = bw)
                     bar(cv, bx, h / 2f - 2f, bw, 8f, frac, col, c)
@@ -314,14 +321,14 @@ object MeterArt {
                 txt(cv, big, r + 16f, h / 2f + r * 0.14f, r * 0.42f, c.text, true, Paint.Align.CENTER, r * 1.2f)
                 txt(cv, sub, r + 16f, h / 2f + r * 0.44f, max(8f, r * 0.18f), c.dim, false, Paint.Align.CENTER, r * 1.2f)
                 val x = 2f * r + 40f
-                val cw = w - x - 14f
+                val cw = w - x - 14f - BTN_W
                 txt(cv, "FILL UP AT", x, 24f, 9.5f, c.dim, true)
                 txt(cv, fillAt, x, 46f, 21f, c.text, true, maxW = cw)
                 txt(cv, eco, x, h - 34f, 11.5f, c.dim, false, maxW = cw)
                 txt(cv, cost, x, h - 16f, 11.5f, c.dim, false, maxW = cw)
             }
             Shape.STACK -> {
-                val r = min(w / 2f - 22f, h * 0.3f)
+                val r = min(w / 2f - 26f, h * 0.3f)
                 ring(cv, w / 2f, 20f + r, r, r * 0.14f, frac, col, c)
                 txt(cv, big, w / 2f, 20f + r + r * 0.14f, r * 0.42f, c.text, true, Paint.Align.CENTER, r * 1.2f)
                 txt(cv, sub, w / 2f, 20f + r + r * 0.46f, max(9f, r * 0.17f), c.dim, false, Paint.Align.CENTER, r * 1.2f)
@@ -381,7 +388,7 @@ object MeterArt {
             }
             Shape.STRIP -> {
                 val pad = 12f
-                val cw = (w - pad * 2f) / 4f
+                val cw = (w - BTN_W - pad * 2f) / 4f
                 listOf("FL", "FR", "RL", "RR").forEachIndexed { i, l ->
                     val x = pad + cw * i
                     cv.drawCircle(x + 5f, h / 2f - 12f, 4f, fill(wheelColor(d, i, c)))
@@ -393,7 +400,7 @@ object MeterArt {
                 val bh = h - 26f
                 car(cv, bh * 0.23f + 30f, h / 2f, bh * 0.46f, bh, d, c, labels = false)
                 val x = bh * 0.46f + 70f
-                val cw = w - x - 14f
+                val cw = w - x - 14f - BTN_W
                 txt(cv, "TYRE PRESSURE", x, 24f, 9.5f, c.dim, true)
                 txt(cv, status.removePrefix("Tyres: ").removePrefix("Tyres ").replaceFirstChar { it.uppercase() }, x, 44f, 13f, warnCol, true, maxW = cw)
                 val half = cw / 2f
@@ -410,5 +417,36 @@ object MeterArt {
                 txt(cv, status, w / 2f, h - 14f, 12f, warnCol, true, Paint.Align.CENTER, w - 28f)
             }
         }
+    }
+
+    // ------------------------------------------------------------------ refresh button
+
+    /**
+     * Small round refresh button. A strip carries it at the right edge, every other look in the top-right corner; the real tap
+     * area is a transparent view in widget_canvas.xml at the same spot. Amber while syncing, red when the last sync failed.
+     */
+    fun refreshButton(cv: Canvas, w: Float, h: Float, c: MeterColors, d: MeterData) {
+        val strip = shapeOf(w, h) == Shape.STRIP
+        val cx = w - 20f
+        val cy = if (strip) h / 2f else 20f
+        val col = when (d.sync) { 1 -> AMBER; 2 -> RED; else -> c.text }
+        cv.drawCircle(cx, cy, 12f, fill(withAlpha(col, if (d.sync == 0) 0.10f else 0.20f)))
+        cv.drawCircle(cx, cy, 12f, stroke(withAlpha(col, if (d.sync == 0) 0.22f else 0.6f), 1f))
+        val r = 5.6f
+        val arcCol = if (d.sync == 0) withAlpha(c.text, 0.85f) else col
+        cv.drawArc(RectF(cx - r, cy - r, cx + r, cy + r), -50f, 280f, false, stroke(arcCol, 1.7f))
+        // arrow head at the end of the arc, pointing along the direction of travel
+        val a = Math.toRadians(230.0)
+        val ex = cx + r * cos(a).toFloat()
+        val ey = cy + r * sin(a).toFloat()
+        val dx = (-sin(a)).toFloat()
+        val dy = cos(a).toFloat()
+        val path = android.graphics.Path().apply {
+            moveTo(ex + dx * 4f, ey + dy * 4f)
+            lineTo(ex - dy * 3.4f, ey + dx * 3.4f)
+            lineTo(ex + dy * 3.4f, ey - dx * 3.4f)
+            close()
+        }
+        cv.drawPath(path, fill(arcCol))
     }
 }

@@ -115,6 +115,7 @@ class StatusWidget : CarWidget() {
 
 object Widgets {
     const val RUN = "com.debarun.cretaremote.WIDGET_RUN"
+    const val REFRESH = "com.debarun.cretaremote.WIDGET_REFRESH"
 
     class Style(val dark: Boolean, val alpha: Int) {
         val bg = if (dark) 0xFF0B0C10.toInt() else 0xFFF3F4F8.toInt()
@@ -169,6 +170,14 @@ object Widgets {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+    /** Live-sync button of the drawn widgets: a broadcast back to the widget's own class. */
+    fun refresh(c: Context, cls: Class<*>): PendingIntent =
+        PendingIntent.getBroadcast(
+            c, 300 + cls.simpleName.hashCode().mod(100),
+            Intent(c, cls).setAction(REFRESH),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
     fun open(c: Context, action: String): PendingIntent =
         PendingIntent.getActivity(
             c, 100 + action.hashCode().mod(100),
@@ -196,6 +205,8 @@ object WidgetState {
         val fillAt: Double? = null, val kmToLimit: Double? = null, val kmpl: Double? = null, val rough: Boolean = true,
         val costKm: Double? = null, val psi: List<Double?> = List(4) { null }, val warn: List<Boolean> = List(4) { false },
         val tyreReported: Boolean = false, val tyreAny: Boolean = false,
+        /** 0 idle, 1 syncing from a widget's refresh button, 2 that sync failed. */
+        val sync: Int = 0,
     )
 
     private fun prefs(c: Context) = c.getSharedPreferences("widget", Context.MODE_PRIVATE)
@@ -213,7 +224,15 @@ object WidgetState {
             psi = (p.getString("psi", "") ?: "").split(",").let { l -> List(4) { i -> l.getOrNull(i)?.toDoubleOrNull() } },
             warn = (p.getString("warn", "") ?: "").let { w -> List(4) { i -> w.getOrNull(i) == '1' } },
             tyreReported = p.getBoolean("tyreReported", false), tyreAny = p.getBoolean("tyreAny", false),
+            // a sync that never reported back (process killed) must not leave the button stuck on "syncing"
+            sync = p.getInt("sync", 0).let { v -> if (v == 1 && System.currentTimeMillis() - p.getLong("syncAt", 0L) > 90_000L) 2 else v },
         )
+    }
+
+    /** Refresh-button state for the drawn widgets. */
+    fun saveSync(c: Context, state: Int) {
+        prefs(c).edit().putInt("sync", state).putLong("syncAt", System.currentTimeMillis()).apply()
+        Widgets.updateAll(c)
     }
 
     /** Called after every fetch. */
@@ -233,6 +252,7 @@ object WidgetState {
             putBoolean("tyreReported", car.tyreReported)
             putBoolean("tyreAny", car.tyreWarnAny)
             putString("psi", psi.joinToString(",") { it?.toString() ?: "" })
+            if (prefs(c).getInt("sync", 0) == 2) putInt("sync", 0) // any good fetch clears an old failure
         }.apply()
         Widgets.updateAll(c)
     }

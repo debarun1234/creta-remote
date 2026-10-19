@@ -10,4 +10,18 @@
         android:layout_height="match_parent"
         android:scaleType="fitXY"
         android:src="@drawable/widget_bg" />
+
+    <!-- invisible tap areas for the refresh button the widget draws itself; one is shown depending on the look -->
+    <ImageView
+        android:id="@+id/w_sync_top"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="top|end" />
+
+    <ImageView
+        android:id="@+id/w_sync_mid"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="center_vertical|end"
+        android:visibility="gone" />
 </FrameLayout>

@@ -19,6 +19,7 @@
     <string name="widget_label_dash">Creta dash</string>
     <string name="widget_label_planner">Creta next fill-up</string>
     <string name="widget_label_tyres">Creta tyres</string>
+    <string name="widget_refresh">Refresh from the car</string>
     <string name="widget_fuelmeter_desc">Fuel arc, range and odometer. Resize it to change its look.</string>
     <string name="widget_dash_desc">Range with fuel and 12V rings. Resize it to change its look.</string>
     <string name="widget_planner_desc">Odometer reading for your next fill-up. Resize it to change its look.</string>

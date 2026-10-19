@@ -2,18 +2,26 @@ package com.debarun.cretaremote.quick
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.os.Bundle
 import android.widget.RemoteViews
+import com.debarun.cretaremote.CretaApp
 import com.debarun.cretaremote.R
+import android.view.View
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.sqrt
 
 /**
  * Widgets drawn as one picture so they can restyle themselves while you drag their corners: the launcher tells us the
  * size, [MeterArt] picks a ring, a strip, a split or a stacked layout for it, and the bitmap is redrawn at exactly that size.
- * Tapping anywhere opens the app.
+ * Tapping anywhere opens the app; the round button in the corner (right edge on a strip) syncs live from the car
+ * without opening it.
  */
 abstract class MeterWidget : CarWidget() {
     abstract val desc: String
@@ -27,6 +35,24 @@ abstract class MeterWidget : CarWidget() {
 
     override fun onAppWidgetOptionsChanged(context: Context, mgr: AppWidgetManager, id: Int, newOptions: Bundle) {
         render(context, mgr, id)
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        if (intent.action != Widgets.REFRESH) return
+        val repo = (context.applicationContext as CretaApp).repo
+        val pending = goAsync()
+        WidgetState.saveSync(context, 1)
+        CoroutineScope(Dispatchers.Default).launch {
+            var ok = false
+            try {
+                // null from refresh = another sync is already running, which is as good as ours
+                ok = withTimeoutOrNull(55_000) { repo.refresh(live = true, quiet = true) ?: true } == true
+            } finally {
+                WidgetState.saveSync(context, if (ok) 0 else 2)
+                pending.finish()
+            }
+        }
     }
 
     private fun render(c: Context, mgr: AppWidgetManager, id: Int) {
@@ -46,11 +72,20 @@ abstract class MeterWidget : CarWidget() {
         val bmp = Bitmap.createBitmap((wDp * scale).toInt().coerceAtLeast(1), (hDp * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp)
         cv.scale(scale, scale)
-        draw(cv, wDp, hDp, MeterColors(st.dark, st.bg, st.text, st.dim, st.alpha), meterData(s))
+        val colors = MeterColors(st.dark, st.bg, st.text, st.dim, st.alpha)
+        val data = meterData(s)
+        draw(cv, wDp, hDp, colors, data)
+        MeterArt.refreshButton(cv, wDp, hDp, colors, data)
         val v = RemoteViews(c.packageName, R.layout.widget_canvas)
         v.setImageViewBitmap(R.id.w_img, bmp)
         v.setContentDescription(R.id.w_img, desc)
         v.setOnClickPendingIntent(R.id.w_root, Widgets.open(c, "HOME"))
+        val strip = MeterArt.shapeOf(wDp, hDp) == MeterArt.Shape.STRIP
+        val tap = if (strip) R.id.w_sync_mid else R.id.w_sync_top
+        v.setViewVisibility(R.id.w_sync_top, if (strip) View.GONE else View.VISIBLE)
+        v.setViewVisibility(R.id.w_sync_mid, if (strip) View.VISIBLE else View.GONE)
+        v.setContentDescription(tap, c.getString(R.string.widget_refresh))
+        v.setOnClickPendingIntent(tap, Widgets.refresh(c, javaClass))
         return v
     }
 }
@@ -83,7 +118,12 @@ class TyreWidget : MeterWidget() {
 private fun meterData(s: WidgetState.S): MeterData = MeterData(
     title = s.title, locked = s.locked, engine = s.engine, fuelPct = s.fuel, litres = s.litres ?: s.fuel?.let { it / 100.0 * s.tank },
     tank = s.tank, limit = s.limit, dteKm = s.dte, odoKm = s.odo, battPct = s.batt,
-    ageText = if (s.ts > 0) "Updated ${com.debarun.cretaremote.ui.agoText(s.ts)}" else "Open the app to sync",
+    ageText = when {
+        s.sync == 1 -> "Syncing…"
+        s.sync == 2 -> "Sync failed, tap refresh to retry"
+        s.ts > 0 -> "Updated ${com.debarun.cretaremote.ui.agoText(s.ts)}"
+        else -> "Open the app to sync"
+    },
     fillAtOdo = s.fillAt, kmToLimit = s.kmToLimit, kmpl = s.kmpl, rough = s.rough, costPerKm = s.costKm,
-    psi = s.psi, warn = s.warn, tyreReported = s.tyreReported, tyreWarnAny = s.tyreAny,
+    psi = s.psi, warn = s.warn, tyreReported = s.tyreReported, tyreWarnAny = s.tyreAny, sync = s.sync,
 )
