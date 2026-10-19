@@ -518,8 +518,15 @@ class Repository(private val ctx: Context) {
 
     private fun computeInsights(car: CarState?): FuelInsights {
         val s = _data.value.settings
-        val ledger = FuelLedger.stats(fills(), car?.odometerKm, s.tankLitres, s.fuelPricePerL, car?.fuelPct?.let { it / 100.0 * s.tankLitres })
-        val ins = Analytics.compute(store.snapshots(), car, s, store.days(""), ledger)
+        val snaps = store.snapshots()
+        // parked readings only: with the engine running the gauge sloshes
+        val gauge = snaps.mapNotNull { p ->
+            val odo = p.odo ?: return@mapNotNull null
+            val pct = p.fuel ?: return@mapNotNull null
+            if (p.engine == true) null else GaugePoint(p.ts, odo, pct / 100.0 * s.tankLitres)
+        }
+        val ledger = FuelLedger.stats(fills(), car?.odometerKm, s.tankLitres, s.fuelPricePerL, car?.fuelPct?.let { it / 100.0 * s.tankLitres }, gauge)
+        val ins = Analytics.compute(snaps, car, s, store.days(""), ledger)
         // the fuel widgets show the same numbers as the Fuel log
         com.debarun.cretaremote.quick.WidgetState.savePlan(
             ctx, ins.litresLeft, s.tankLitres, s.fuelLimitL, ins.fillAtOdo, ins.kmToLimit, ledger.kmplNow, !ledger.usable, ins.costPerKm,

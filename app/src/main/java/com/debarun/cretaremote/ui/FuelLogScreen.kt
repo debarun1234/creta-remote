@@ -94,9 +94,16 @@ fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
                 CountUp(l.kmplNow, decimals = 1, size = 54.sp, suffix = "km/L", color = if (l.usable) C.Text else C.Amber)
                 if (l.usable) {
                     Txt(
-                        "Last ${l.recentLegs} full-tank stretch${if (l.recentLegs == 1) "" else "es"}, pooled by distance",
+                        "Last ${l.recentLegs} stretch${if (l.recentLegs == 1) "" else "es"}" + when {
+                            l.recentExact == l.recentLegs -> " between full tanks"
+                            l.recentExact == 0 -> ", measured with the fuel gauge between fill-ups"
+                            else -> ", ${l.recentLegs - l.recentExact} measured with the fuel gauge"
+                        } + ", pooled by distance",
                         size = 12.sp, color = C.Dim,
                     )
+                    if (l.recentExact < l.recentLegs && l.errPct != null) {
+                        Txt("Gauge-based, so accurate to about ±${Fmt.n(max(1.0, l.errPct), 0)}%. A brim-full fill makes the next figure exact.", size = 11.sp, color = C.Faint)
+                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Stat("Average", kmplText(l.kmplAll), Modifier.weight(1f))
                         Stat("Best", kmplText(l.kmplBest), Modifier.weight(1f), C.Green)
@@ -114,7 +121,7 @@ fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
                         }
                     }
                 } else if (l.provisionalKmpl != null) {
-                    Txt("Provisional. Rough, from the fuel gauge, until your next brim-full fill gives the exact figure.", size = 12.sp, color = C.Amber)
+                    Txt("Provisional. Rough, from the fuel gauge. A measured figure appears after about 250 km of driving.", size = 12.sp, color = C.Amber)
                     Txt(
                         "${Fmt.n(l.openKm ?: 0.0, 0)} km since your last brim-full fill, about ${Fmt.n(l.provisionalLitres ?: 0.0, 1)} L burnt (${Fmt.n(tank, 0)} L full, gauge now ${ins.litresLeft?.let { Fmt.n(it, 1) } ?: "?"} L).",
                         size = 12.sp, color = C.Dim,
@@ -126,7 +133,7 @@ fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
                 val series = l.legs.filter { it.valid }.map { it.kmpl }
                 if (series.size >= 2) {
                     LineChart(series, Modifier.fillMaxWidth().height(130.dp), C.Cyan)
-                    Txt("km/L per full-tank stretch, oldest to newest", size = 11.sp, color = C.Faint)
+                    Txt("km/L per stretch, oldest to newest", size = 11.sp, color = C.Faint)
                 } else if (l.usable && l.hint != null) {
                     Txt(l.hint, size = 12.sp, color = C.Amber)
                 }
@@ -197,16 +204,16 @@ fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
         // ------------------------------------------------------------ stretches
         Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Eyebrow("Full-tank stretches")
+                Eyebrow("Stretches")
                 if (l.legs.isEmpty()) {
-                    Txt("A stretch is the distance between two brim-full fill-ups, with every litre added in between. Log two brim-full fills to get the first.", size = 13.sp, color = C.Dim)
+                    Txt("A stretch is a distance with the fuel burnt over it: from one brim-full fill to the next, or, using the fuel gauge, from one reading to another about 250 km later. Keep logging fill-ups, full or partial, and stretches appear here.", size = 13.sp, color = C.Dim)
                 } else {
                     l.legs.asReversed().take(12).forEach { g ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Txt("${Fmt.grouped(g.fromOdo.toLong())} to ${Fmt.grouped(g.toOdo.toLong())} km", size = 14.sp, weight = FontWeight.Medium)
                                 Txt(
-                                    "${Fmt.n(g.km, 0)} km · ${Fmt.n(g.litres, 1)} L · ${rs(g.cost)}" + if (g.fills > 1) " · ${g.fills} fills" else "",
+                                    "${Fmt.n(g.km, 0)} km · ${Fmt.n(g.litres, 1)} L · ${rs(g.cost)}" + (if (g.fills > 1) " · ${g.fills} fills" else "") + (if (g.exact) "" else " · from gauge"),
                                     size = 12.sp, color = C.Faint,
                                 )
                                 if (!g.valid) Txt(g.note, size = 11.sp, color = C.Amber)
@@ -260,10 +267,10 @@ fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
         Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Eyebrow("How this is worked out")
-                Txt("Economy is measured tank to tank. Fill to the brim, note the odometer; at the next brim-full fill, the distance driven divided by every litre added since is your real km/L.", size = 12.sp, color = C.Dim)
-                Txt("Partial top-ups never count on their own. Their litres pool into the next brim-full fill, so 30 L now and 15 L a few days later simply add up with the final fill.", size = 12.sp, color = C.Dim)
+                Txt("Brim-full to brim-full is the exact measure: the distance driven divided by every litre added since is your real km/L.", size = 12.sp, color = C.Dim)
+                Txt("Partial top-ups count too. Between fill-ups the app reads the fuel gauge from your car: litres burnt = litres in the tank at the start + litres you poured in - litres in the tank at the end. That needs about 250 km of driving, and the accuracy is shown beside the figure.", size = 12.sp, color = C.Dim)
                 Txt("Cost uses the price you actually paid on each fill, not one fixed price. Stretches shorter than 40 km, or far off your usual, are left out of the averages and flagged.", size = 12.sp, color = C.Dim)
-                Txt("The first brim-full fill is only a starting point, so economy appears after the second. The gauge is never used for economy.", size = 12.sp, color = C.Dim)
+                Txt("Gauge readings taken beside a fill-up, or with the tank nearly full or empty, are ignored because the gauge is unreliable there. A gauge rise with no fill-up logged is treated as a missed refuel, and the stretch starts again after it.", size = 12.sp, color = C.Dim)
             }
         }
     }
@@ -303,7 +310,7 @@ fun TripCostPanel(d: AppData, compact: Boolean = false) {
                 }
                 Txt(
                     (if (compact) "${litresNow?.let { "${Fmt.n(it, 1)} L" } ?: "—"} in the tank, ${agoText(d.fetchedAt)}. " else "From the car's last report, ${agoText(d.fetchedAt)}. ") +
-                        "Economy used: ${Fmt.n(e, 1)} km/L" + if (l.usable) "." else " (rough, until your next brim-full fill).",
+                        "Economy used: ${Fmt.n(e, 1)} km/L" + if (l.usable) "." else " (rough, until a stretch is measured).",
                     size = 11.sp, color = C.Faint,
                 )
 
@@ -394,8 +401,8 @@ private fun FillForm(
             Column(Modifier.weight(1f)) {
                 Txt("Filled to the brim", size = 15.sp, weight = FontWeight.Medium)
                 Txt(
-                    if (full) "Pump clicked off. Tank to tank economy is measured from here."
-                    else "Partial top-up. Its litres are added to the next brim-full fill.",
+                    if (full) "Pump clicked off. The most exact starting point for economy."
+                    else "Partial top-up. It counts too: the app uses the fuel gauge before and after to measure economy.",
                     size = 12.sp, color = C.Faint,
                 )
             }

@@ -32,6 +32,16 @@ data class FuelInsights(
 object Analytics {
     private const val DAY_MS = 86_400_000L
 
+    private fun recentSource(l: LedgerStats): String {
+        val n = l.recentLegs
+        val plural = if (n == 1) "" else "es"
+        return when {
+            l.recentExact == n -> "your last $n full-tank stretch$plural"
+            l.recentExact == 0 -> "your last $n stretch$plural, measured with the fuel gauge between fill-ups"
+            else -> "your last $n stretch$plural, ${n - l.recentExact} of them measured with the fuel gauge"
+        }
+    }
+
     fun compute(snaps: List<Snapshot>, car: CarState?, s: Settings, tripDays: List<DayRow>, ledger: LedgerStats, now: Long = System.currentTimeMillis()): FuelInsights {
         val usable = snaps.filter { it.odo != null }.sortedBy { it.ts }
 
@@ -39,8 +49,8 @@ object Analytics {
         val carImplied = if (litresLeft != null && litresLeft > 3.0 && (car?.dteKm ?: 0.0) > 0.0) car!!.dteKm!! / litresLeft else null
 
         val (used, source) = when {
-            ledger.kmplRecent != null -> ledger.kmplRecent to "your last ${ledger.recentLegs} full-tank stretch${if (ledger.recentLegs == 1) "" else "es"}"
-            ledger.provisionalKmpl != null -> ledger.provisionalKmpl to "a rough estimate since your last fill-up. Fill to the brim again for the exact figure"
+            ledger.kmplRecent != null -> ledger.kmplRecent to recentSource(ledger)
+            ledger.provisionalKmpl != null -> ledger.provisionalKmpl to "a rough estimate since your last fill-up. Keep logging fill-ups for a measured figure"
             carImplied != null -> carImplied to "the car's own estimate. Log fill-ups for real figures"
             else -> null to ""
         }
