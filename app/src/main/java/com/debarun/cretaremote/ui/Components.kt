@@ -6,16 +6,28 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.input.ImeAction
 import kotlin.math.cos
 import kotlinx.coroutines.launch
 import androidx.compose.ui.geometry.Offset
@@ -469,6 +481,62 @@ fun Field(
             },
         )
     }
+}
+
+/**
+ * A date as three fixed boxes, DD - MM - YYYY: digits only, each box holds exactly what it needs, focus moves on by itself and
+ * Backspace on an empty box steps back, so there is nothing to mistype. A lone 4-9 in the day (or 2-9 in the month) becomes 04 (02) and moves on.
+ */
+@Composable
+fun DateBoxes(label: String, day: String, month: String, year: String, onChange: (day: String, month: String, year: String) -> Unit, modifier: Modifier = Modifier) {
+    val fd = remember { FocusRequester() }
+    val fm = remember { FocusRequester() }
+    val fy = remember { FocusRequester() }
+    Column(modifier) {
+        Eyebrow(label, Modifier.padding(start = 4.dp, bottom = 6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DatePart(day, "DD", 2, 64.dp, fd, null, fm) { v ->
+                val d = if (v.length == 1 && v[0] > '3') "0$v" else v
+                onChange(d, month, year); if (d.length == 2) fm.requestFocus()
+            }
+            Txt("-", size = 18.sp, color = C.Faint)
+            DatePart(month, "MM", 2, 64.dp, fm, fd, fy) { v ->
+                val m = if (v.length == 1 && v[0] > '1') "0$v" else v
+                onChange(day, m, year); if (m.length == 2) fy.requestFocus()
+            }
+            Txt("-", size = 18.sp, color = C.Faint)
+            DatePart(year, "YYYY", 4, 92.dp, fy, fm, null) { v -> onChange(day, month, v) }
+        }
+    }
+}
+
+@Composable
+private fun DatePart(value: String, hint: String, len: Int, width: Dp, me: FocusRequester, prev: FocusRequester?, next: FocusRequester?, onValue: (String) -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    BasicTextField(
+        value = value,
+        onValueChange = { onValue(it.filter(Char::isDigit).take(len)) },
+        singleLine = true,
+        textStyle = TextStyle(color = C.Text, fontSize = 18.sp, textAlign = TextAlign.Center, fontWeight = FontWeight.Medium),
+        cursorBrush = SolidColor(C.Red),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = if (next != null) ImeAction.Next else ImeAction.Done),
+        keyboardActions = KeyboardActions(onNext = { next?.requestFocus() }),
+        modifier = Modifier.width(width).focusRequester(me).onFocusChanged { focused = it.isFocused }
+            .onPreviewKeyEvent { e ->
+                if (e.key == Key.Backspace && e.type == KeyEventType.KeyDown && value.isEmpty() && prev != null) { prev.requestFocus(); true } else false
+            },
+        decorationBox = { inner ->
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.Surface2)
+                    .border(1.dp, if (focused) C.Red else C.Line, RoundedCornerShape(14.dp))
+                    .padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (value.isEmpty()) Txt(hint, size = 18.sp, color = C.Faint)
+                inner()
+            }
+        },
+    )
 }
 
 @Composable

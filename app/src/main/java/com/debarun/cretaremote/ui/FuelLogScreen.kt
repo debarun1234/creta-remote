@@ -241,7 +241,7 @@ fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Txt(dayText(f.ts), size = 14.sp, weight = FontWeight.Medium)
+                                Txt(SimpleDateFormat("dd-MM-yyyy", Locale.US).format(java.util.Date(f.ts)), size = 14.sp, weight = FontWeight.Medium)
                                 Txt(
                                     "${Fmt.grouped(f.odoKm.toLong())} km · " + (if (f.pricePerL > 0) "${rs(f.pricePerL, 2)}/L · ${rs(f.amount)}" else "no price") +
                                         " · " + (if (f.full) "brim-full" else "top-up"),
@@ -368,7 +368,12 @@ private fun FillForm(
     onCancel: () -> Unit,
 ) {
     val dateFmt = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false } }
-    var date by remember { mutableStateOf(dateFmt.format(java.util.Date(initial?.ts ?: System.currentTimeMillis()))) }
+    val start = remember { dateFmt.format(java.util.Date(initial?.ts ?: System.currentTimeMillis())) } // yyyy-MM-dd
+    var dd by remember { mutableStateOf(start.substring(8, 10)) }
+    var mm by remember { mutableStateOf(start.substring(5, 7)) }
+    var yyyy by remember { mutableStateOf(start.substring(0, 4)) }
+    val date = "$yyyy-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}"
+    val dateComplete = dd.isNotEmpty() && mm.isNotEmpty() && yyyy.length == 4
     var odo by remember { mutableStateOf((initial?.odoKm ?: odoDefault)?.toLong()?.toString() ?: "") }
     var litres by remember { mutableStateOf(initial?.litres?.let { Fmt.n(it, 2).trimEnd('0').trimEnd('.') } ?: "") }
     var price by remember { mutableStateOf((initial?.pricePerL ?: priceDefault)?.takeIf { it > 0 }?.let { Fmt.n(it, 2) } ?: "") }
@@ -378,7 +383,7 @@ private fun FillForm(
 
     Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Eyebrow(if (initial == null) "New fill-up" else "Edit fill-up")
-        Field("Date (yyyy-mm-dd)", date, { date = it.filter { c -> c.isDigit() || c == '-' }.take(10) })
+        DateBoxes("Date", dd, mm, yyyy) { d, m, y -> dd = d; mm = m; yyyy = y }
         Field("Odometer (km)", odo, { odo = cleanNum(it) }, keyboard = KeyboardType.Number)
         Field("Litres filled (max ${Fmt.n(tank, 0)})", litres, { litres = cleanNum(it) }, keyboard = KeyboardType.Decimal)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -398,11 +403,11 @@ private fun FillForm(
         }
         error?.let { Txt(it, size = 13.sp, color = C.RedHi) }
         PrimaryButton("Save fill-up", {
-            val day = runCatching { dateFmt.parse(date) }.getOrNull()
+            val day = if (dateComplete) runCatching { dateFmt.parse(date) }.getOrNull() else null
             val l = litres.toDoubleOrNull()
             val o = odo.toDoubleOrNull()
             when {
-                day == null -> error = "Enter the date as yyyy-mm-dd."
+                day == null -> error = "Enter a real date as DD-MM-YYYY."
                 l == null || o == null -> error = "Enter litres and odometer."
                 else -> {
                     val now = System.currentTimeMillis()
