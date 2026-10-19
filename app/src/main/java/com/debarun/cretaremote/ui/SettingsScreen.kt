@@ -43,6 +43,7 @@ import com.debarun.cretaremote.data.AppData
 import com.debarun.cretaremote.data.Powertrain
 import com.debarun.cretaremote.data.Transmission
 import com.debarun.cretaremote.data.Vin
+import com.debarun.cretaremote.data.passwordDaysLeft
 
 @Composable
 fun SettingsScreen(d: AppData, vm: AppViewModel) {
@@ -50,6 +51,7 @@ fun SettingsScreen(d: AppData, vm: AppViewModel) {
     var tank by remember(s.tankLitres) { mutableStateOf(Fmt.n(s.tankLitres, 0)) }
     var price by remember(s.fuelPricePerL) { mutableStateOf(if (s.fuelPricePerL > 0) Fmt.n(s.fuelPricePerL, 2) else "") }
     var pin by remember { mutableStateOf("") }
+    var pwDays by remember(s.passwordDays) { mutableStateOf(s.passwordDays.toString()) }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding()
@@ -103,6 +105,29 @@ fun SettingsScreen(d: AppData, vm: AppViewModel) {
                 Field("Bluelink PIN", pin, { pin = it.filter { c -> c.isDigit() }.take(6) }, password = true, keyboard = KeyboardType.NumberPassword,
                     hint = if (d.hasPin) "saved - type to replace" else "needed for engine stop and horn")
                 if (pin.length >= 4) PrimaryButton("Save PIN", { vm.savePin(pin); pin = "" })
+            }
+        }
+
+        Panel(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Eyebrow("Bluelink password")
+                val left = s.passwordDaysLeft()
+                if (left == null) {
+                    Txt("Not tracked yet. Tap below once you have set or changed the password, and the app will warn you before it expires.", size = 13.sp, color = C.Dim)
+                } else {
+                    val c = when { left < 0 -> C.RedHi; left <= 7 -> C.Amber; else -> C.Green }
+                    Txt(
+                        when { left < 0 -> "Probably expired ${-left} day${if (-left == 1) "" else "s"} ago"; left == 0 -> "Expires today"; else -> "Expires in $left day${if (left == 1) "" else "s"}" },
+                        size = 20.sp, weight = FontWeight.Medium, color = c,
+                    )
+                    Txt("Set on ${dayText(s.passwordSetAt)}. A warning is sent a week before, then daily, when the app is closed.", size = 12.sp, color = C.Faint)
+                }
+                Field("Password lasts (days)", pwDays, { v ->
+                    pwDays = v.filter { c -> c.isDigit() }.take(3)
+                    v.filter { c -> c.isDigit() }.toIntOrNull()?.takeIf { it in 1..365 }?.let { vm.saveSettings(s.copy(passwordDays = it)) }
+                }, keyboard = KeyboardType.Number, hint = "90")
+                Txt("Hyundai does not publish the rule, so set the number of days to match what you have seen. Passwords are changed in the official Bluelink app, not here.", size = 11.sp, color = C.Faint)
+                GhostButton(if (left == null) "Start tracking from today" else "I just changed my password", { vm.passwordChanged() }, color = C.Cyan)
             }
         }
 

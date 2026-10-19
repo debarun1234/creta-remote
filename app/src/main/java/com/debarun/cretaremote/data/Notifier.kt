@@ -26,6 +26,7 @@ object Notifier {
     private const val CH_FUEL_ALARM = "fuel_alarm"
     const val ID_FUEL_HEADS_UP = 301
     const val ID_FUEL_ALARM = 302
+    const val ID_PASSWORD = 303
 
     fun ensureChannels(ctx: Context) {
         if (Build.VERSION.SDK_INT < 26) return

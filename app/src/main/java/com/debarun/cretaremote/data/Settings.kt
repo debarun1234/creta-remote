@@ -24,7 +24,18 @@ data class Settings(
     val widgetBg: Int = 1,
     /** Litres to keep in the tank on this trip; alerts fire as it nears this. */
     val fuelLimitL: Int = FuelWatch.DEFAULT,
+    /** When the Bluelink password was last set (ms), 0 = not tracked yet. */
+    val passwordSetAt: Long = 0L,
+    /** How many days Bluelink lets a password live. Hyundai does not publish this, so the driver sets it. */
+    val passwordDays: Int = 90,
 )
+
+/** Whole days until the Bluelink password expires (negative once it has), or null when not tracked. */
+fun Settings.passwordDaysLeft(now: Long = System.currentTimeMillis()): Int? {
+    if (passwordSetAt <= 0L || passwordDays <= 0) return null
+    val left = passwordSetAt + passwordDays * 86_400_000L - now
+    return Math.floorDiv(left, 86_400_000L).toInt() + if (left % 86_400_000L != 0L) 1 else 0
+}
 
 /** "2022 Creta SX" - the year comes from the VIN once one is entered, otherwise from the saved model year. */
 fun Settings.carTitle(): String = "${Vin.decode(vin).modelYear ?: modelYear} Creta SX"
@@ -51,6 +62,8 @@ class SettingsStore(context: Context) {
         widgetTheme = p.getInt("wtheme", 0),
         widgetBg = p.getInt("wbg", 1),
         fuelLimitL = p.getInt("fuelLimit", FuelWatch.DEFAULT).coerceIn(FuelWatch.MIN, FuelWatch.MAX),
+        passwordSetAt = p.getLong("pwSetAt", 0L),
+        passwordDays = p.getInt("pwDays", 90).coerceIn(1, 365),
     )
 
     fun save(s: Settings) {
@@ -73,6 +86,8 @@ class SettingsStore(context: Context) {
             .putInt("wtheme", s.widgetTheme)
             .putInt("wbg", s.widgetBg)
             .putInt("fuelLimit", s.fuelLimitL)
+            .putLong("pwSetAt", s.passwordSetAt)
+            .putInt("pwDays", s.passwordDays)
             .apply()
     }
 }

@@ -31,6 +31,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun signIn(email: String, password: String, pin: String) { viewModelScope.launch { repo.signIn(email, password, pin) } }
     fun signOut() = repo.signOut()
     fun savePin(pin: String) = repo.savePin(pin)
+    fun passwordChanged() = repo.passwordChanged()
     fun saveSettings(s: Settings) = repo.updateSettings(s)
     fun addService(log: ServiceLog) { viewModelScope.launch { repo.addService(log) } }
     fun deleteService(ts: Long) { viewModelScope.launch { repo.deleteService(ts) } }

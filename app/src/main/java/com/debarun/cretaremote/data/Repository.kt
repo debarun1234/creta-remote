@@ -302,8 +302,11 @@ class Repository(private val ctx: Context) {
         loginBlockedUntil = 0
         try {
             val s = client.login(email.trim(), password)
+            val changed = vault.get("password") != password
             vault.put("email", email.trim())
             vault.put("password", password)
+            // a different password than the one we had means it was just changed, so the expiry clock restarts
+            if (changed || _data.value.settings.passwordSetAt == 0L) updateSettings(_data.value.settings.copy(passwordSetAt = System.currentTimeMillis()))
             vault.put("pin", pin)
             saveSession(s)
             vehicle = null
@@ -332,6 +335,25 @@ class Repository(private val ctx: Context) {
         vault.put("pin", pin)
         session = session?.copy(controlToken = null, controlExpiry = 0)
         _data.update { it.copy(hasPin = pin.isNotEmpty()) }
+    }
+
+    /** The driver changed the Bluelink password (in the official app); restart the expiry clock. */
+    fun passwordChanged() = updateSettings(_data.value.settings.copy(passwordSetAt = System.currentTimeMillis()))
+
+    /** Once a day at most, a week before the password is due to expire and then every day until it does. */
+    private fun checkPasswordExpiry() {
+        val st = _data.value.settings
+        val left = st.passwordDaysLeft() ?: return
+        if (left > PASSWORD_WARN_DAYS || !st.notifyAlerts || AppForeground.visible) return
+        val today = System.currentTimeMillis() / 86_400_000L
+        if (store.kvGet("pw_notified") == today.toString()) return
+        store.kvPut("pw_notified", today.toString())
+        val (title, text) = when {
+            left < 0 -> "Bluelink password has probably expired" to "Change it in the official Bluelink app, then sign in here again. Creta Remote cannot reach the car until you do."
+            left == 0 -> "Bluelink password expires today" to "Change it in the official Bluelink app, then update it in Creta Remote."
+            else -> "Bluelink password expires in $left day${if (left == 1) "" else "s"}" to "Change it in the official Bluelink app, then sign in here with the new one."
+        }
+        Notifier.alert(ctx, Notifier.ID_PASSWORD, title, text)
     }
 
     fun updateSettings(s: Settings) {
@@ -530,6 +552,7 @@ class Repository(private val ctx: Context) {
     /** Called by WorkManager: stores a snapshot using the cheap cloud copy. */
     suspend fun backgroundSnapshot(): Boolean {
         if (vault.get("email") == null) return true
+        checkPasswordExpiry()
         // while driving the modem is awake anyway, so ask the car directly; otherwise take the cached reading
         refresh(live = _data.value.car?.engineOn == true)
         return _data.value.error == null
@@ -951,6 +974,7 @@ class Repository(private val ctx: Context) {
 
     private companion object {
         const val KEEP_AWAKE_MS = 10 * 60_000L
+        const val PASSWORD_WARN_DAYS = 7
         const val PING_EVERY_MS = 3 * 60_000L
     }
 
