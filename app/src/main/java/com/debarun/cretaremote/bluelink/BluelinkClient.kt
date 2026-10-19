@@ -60,23 +60,33 @@ class BluelinkClient {
         val c = http.newBuilder().cookieJar(jar).build()
 
         // 1) seed cookies
-        c.newCall(
+        val seedCode = c.newCall(
             Request.Builder().url(
                 "${USER}oauth2/authorize?response_type=code&state=test&client_id=$SERVICE_ID&redirect_uri=${USER}oauth2/redirect",
             ).header("User-Agent", UA).build(),
-        ).execute().close()
+        ).execute().use { it.code }
 
         // 2) sign in -> redirect url carrying the auth code
         val body = JSONObject().put("email", email).put("password", password).toString()
+        var signinCode = 0
         val signin = c.newCall(
             Request.Builder().url("${USER}signin")
                 .header("User-Agent", UA)
                 .post(body.toByteArray().toRequestBody(JSON)).build(),
-        ).execute().use { r -> r.body?.string().orEmpty() }
-        val redirect = try { JSONObject(signin).optString("redirectUrl") } catch (e: Exception) { "" }
+        ).execute().use { r -> signinCode = r.code; r.body?.string().orEmpty() }
+        val json = try { JSONObject(signin) } catch (e: Exception) { null }
+        val redirect = json?.optString("redirectUrl").orEmpty()
         val code = if (redirect.isNotEmpty()) Uri.parse(redirect).getQueryParameter("code") else null
         if (code.isNullOrEmpty()) {
-            throw BluelinkException("Sign-in failed. Check your Bluelink email and password.", auth = true)
+            // Say what the server actually answered, so "wrong password" is not blamed for an outage, a lockout or an API change.
+            val said = json?.let { j ->
+                listOf("errMsg", "errorMessage", "error_description", "message", "resMsg", "error", "errorCode", "resCode", "retCode")
+                    .mapNotNull { k -> j.optString(k).takeIf { it.isNotBlank() }?.let { "$k=$it" } }.joinToString(", ")
+            }.orEmpty().ifEmpty { signin.replace(Regex("\\s+"), " ").take(120) }
+            val redirectErr = if (redirect.isNotEmpty()) Uri.parse(redirect).getQueryParameter("error") else null
+            val detail = listOfNotNull("HTTP $signinCode", "seed $seedCode".takeIf { seedCode !in 200..399 }, redirectErr?.let { "redirect error=$it" }, said.takeIf { it.isNotEmpty() })
+                .joinToString(" · ")
+            throw BluelinkException("Sign-in failed ($detail). If your email and password are right, Bluelink may be blocking or down. Try the official app, then wait and retry.", auth = true)
         }
 
         // 3) exchange code for access token

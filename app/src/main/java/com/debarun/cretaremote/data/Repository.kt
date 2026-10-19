@@ -227,10 +227,31 @@ class Repository(private val ctx: Context) {
         val email = vault.get("email")
         val pass = vault.get("password")
         if (email == null || pass == null) throw BluelinkException("Please sign in again.", auth = true)
-        val s = client.login(email, pass)
-        saveSession(s)
-        return s
+        // Background work (widgets, 15-min snapshots, fuel watch) calls this too. After a failure, stop hammering the server:
+        // repeated bad logins are exactly what gets an account temporarily locked.
+        val now = System.currentTimeMillis()
+        if (now < loginBlockedUntil) throw BluelinkException(loginBlockedMsg ?: "Sign-in is paused after a failure. Open the app and sign in again.", auth = true)
+        try {
+            val s = client.login(email, pass)
+            loginFailures = 0
+            loginBlockedUntil = 0
+            saveSession(s)
+            return s
+        } catch (e: BluelinkException) {
+            if (e.auth) {
+                loginFailures++
+                val wait = minOf(120L, 15L shl minOf(loginFailures - 1, 3)) // 15, 30, 60, 120 min
+                loginBlockedUntil = now + wait * 60_000L
+                loginBlockedMsg = (e.message ?: "Sign-in failed.") + " Automatic retries paused for $wait min."
+                throw BluelinkException(loginBlockedMsg!!, auth = true)
+            }
+            throw e
+        }
     }
+
+    @Volatile private var loginBlockedUntil = 0L
+    @Volatile private var loginBlockedMsg: String? = null
+    @Volatile private var loginFailures = 0
 
     private fun saveSession(s: Session) {
         session = s
@@ -278,6 +299,7 @@ class Repository(private val ctx: Context) {
 
     suspend fun signIn(email: String, password: String, pin: String) {
         _data.update { it.copy(signingIn = true, signInError = null) }
+        loginBlockedUntil = 0
         try {
             val s = client.login(email.trim(), password)
             vault.put("email", email.trim())
