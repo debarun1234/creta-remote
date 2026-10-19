@@ -488,7 +488,7 @@ fun Field(
  * Backspace on an empty box steps back, so there is nothing to mistype. A lone 4-9 in the day (or 2-9 in the month) becomes 04 (02) and moves on.
  */
 @Composable
-fun DateBoxes(label: String, day: String, month: String, year: String, onChange: (day: String, month: String, year: String) -> Unit, modifier: Modifier = Modifier) {
+fun DateBoxes(label: String, day: String, month: String, year: String, modifier: Modifier = Modifier, onChange: (day: String, month: String, year: String) -> Unit) {
     val fd = remember { FocusRequester() }
     val fm = remember { FocusRequester() }
     val fy = remember { FocusRequester() }
