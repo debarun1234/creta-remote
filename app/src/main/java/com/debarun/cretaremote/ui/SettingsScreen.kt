@@ -8,6 +8,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Box
@@ -37,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import com.debarun.cretaremote.BuildConfig
 import com.debarun.cretaremote.data.Notifier
 import com.debarun.cretaremote.AppViewModel
 import com.debarun.cretaremote.data.AppData
@@ -47,6 +52,15 @@ import com.debarun.cretaremote.data.passwordDaysLeft
 
 @Composable
 fun SettingsScreen(d: AppData, vm: AppViewModel) {
+    var about by rememberSaveable { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize()) {
+        SettingsList(d, vm, onAbout = { about = true })
+        if (about) AboutScreen(onClose = { about = false })
+    }
+}
+
+@Composable
+private fun SettingsList(d: AppData, vm: AppViewModel, onAbout: () -> Unit) {
     val s = d.settings
     var tank by remember(s.tankLitres) { mutableStateOf(Fmt.n(s.tankLitres, 0)) }
     var price by remember(s.fuelPricePerL) { mutableStateOf(if (s.fuelPricePerL > 0) Fmt.n(s.fuelPricePerL, 2) else "") }
@@ -169,6 +183,16 @@ fun SettingsScreen(d: AppData, vm: AppViewModel) {
                     "Unofficial: Bluelink's API is undocumented and Hyundai can change it at any time. This app is not affiliated with Hyundai.",
                     size = 12.sp, color = C.Faint,
                 )
+            }
+        }
+
+        Panel(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).clickable { onAbout() }) {
+            Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Txt("About Creta Remote", size = 15.sp, weight = FontWeight.SemiBold)
+                    Txt("Version ${BuildConfig.VERSION_NAME} · privacy · limits · credits", size = 12.sp, color = C.Dim)
+                }
+                Icon(Icons.Rounded.ChevronRight, null, tint = C.Dim)
             }
         }
 

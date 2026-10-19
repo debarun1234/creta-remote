@@ -51,6 +51,24 @@ Commands travel phone -> Hyundai cloud -> the car's modem, so the last leg (waki
 
 First launch shows a three-step setup (what it does, its limits, biometric/tank preferences), then sign-in. Every launch after that opens with the welcome screen (tap to skip).
 
+## Signed release APK
+
+One-time, create the signing key (stored in `~/.creta-remote/`, outside the repo, plus a git-ignored `keystore.properties`):
+
+```bash
+./scripts/make-keystore.sh
+```
+
+Then, any time:
+
+```bash
+./gradlew :app:assembleRelease      # app/build/outputs/apk/release/app-release.apk (R8-shrunk, signed)
+```
+
+Without `keystore.properties` the same command produces an **unsigned** `app-release-unsigned.apk` that Android will not install. Check a signature with `apksigner verify --print-certs app-release.apk` (in the SDK's `build-tools`). Raise `versionCode` (and `versionName`) in `app/build.gradle.kts` for every release you hand out.
+
+**Back up the keystore and its password.** Updates only install over an existing copy if they are signed with the same key. A debug build and a release build use different keys, so moving from one to the other means uninstalling first, which erases the on-phone fuel log and history.
+
 ## Build
 
 Needs JDK 17 and the Android SDK (API 35). Open in Android Studio, or:

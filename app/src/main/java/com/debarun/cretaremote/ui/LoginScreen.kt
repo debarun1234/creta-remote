@@ -44,12 +44,12 @@ fun LoginScreen(d: AppData, vm: AppViewModel) {
         }
         Field("Bluelink email", email, { email = it }, keyboard = KeyboardType.Email)
         Field("Password", pass, { pass = it }, password = true, keyboard = KeyboardType.Password)
-        Field("Bluelink PIN", pin, { pin = it.filter { c -> c.isDigit() }.take(6) }, password = true, keyboard = KeyboardType.NumberPassword, hint = "used for engine stop and horn")
+        Field("Bluelink PIN (4-6 digits)", pin, { pin = it.filter { c -> c.isDigit() }.take(6) }, password = true, keyboard = KeyboardType.NumberPassword, hint = "needed to send commands")
         d.signInError?.let { Txt(it, size = 13.sp, color = C.RedHi) }
         PrimaryButton("Connect car", { vm.signIn(email, pass, pin) }, enabled = email.contains("@") && pass.isNotEmpty(), loading = d.signingIn)
         Spacer(Modifier.height(4.dp))
         Txt(
-            "Your credentials are encrypted on this phone and sent only to Hyundai Bluelink.",
+            "Your password and PIN are encrypted on this phone (Android Keystore) and sent only to Hyundai Bluelink.",
             Modifier.fillMaxWidth(), size = 12.sp, color = C.Faint, align = TextAlign.Center,
         )
     }

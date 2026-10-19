@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.LocalGasStation
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -133,7 +134,7 @@ fun WelcomeSplash(ready: Boolean, signedIn: Boolean, onDone: () -> Unit) {
                 Txt("Creta Remote", Modifier.padding(top = 8.dp), size = 40.sp, weight = FontWeight.Light, spacing = (-1).sp)
                 Txt(
                     when {
-                        !ready -> "Waking up your Creta…"
+                        !ready -> "Getting your Creta ready…"
                         signedIn -> "Welcome back"
                         else -> "Let's get you connected"
                     },
@@ -209,44 +210,46 @@ fun SetupFlow(d: AppData, vm: AppViewModel) {
                         SideCar(Modifier.fillMaxWidth())
                         Column {
                             Eyebrow("Welcome", color = C.RedHi)
-                            Txt("Your Creta,\nwithout the wait.", Modifier.padding(top = 8.dp), size = 34.sp, weight = FontWeight.Light, spacing = (-0.8).sp, lineHeight = 40.sp)
+                            Txt("Your Creta,\nin your pocket.", Modifier.padding(top = 8.dp), size = 34.sp, weight = FontWeight.Light, spacing = (-0.8).sp, lineHeight = 40.sp)
                             Txt(
-                                "A faster, cleaner way to lock, unlock, start and watch your car through Hyundai Bluelink.",
+                                "Control and keep an eye on your Creta through Hyundai Bluelink, using your own account and no middle server.",
                                 Modifier.padding(top = 10.dp), size = 14.sp, color = C.Dim,
                             )
                         }
-                        Point(Icons.Rounded.Lock, "Instant controls", "Lock, unlock, climate start, horn and lights from one screen.")
-                        Point(Icons.Rounded.LocalGasStation, "Fuel you can plan around", "Range, km/L, cost, and a fuel alert you set per trip with a phone alarm.")
-                        Point(Icons.Rounded.Place, "Where it's been", "Every trip and parking spot, kept on this phone.")
+                        Point(Icons.Rounded.Lock, "Remote control", "Lock, unlock, climate and engine start, lights, horn and boot. From the app, Quick Settings tiles or a home-screen widget.")
+                        Point(Icons.Rounded.Speed, "Live car status", "Fuel, range, tyres, 12V, doors and windows on a top-down car. Resizable widgets redraw to fit, with a refresh button.")
+                        Point(Icons.Rounded.LocalGasStation, "Fuel log and alarm", "Log your fill-ups for real km/L and cost per km, and get a phone alarm before you run low.")
+                        Point(Icons.Rounded.Place, "Trips and parking", "Distance, drive time and every parking spot, on a map. Kept on this phone.")
                     }
                     1 -> {
                         Column {
-                            Eyebrow("How it works", color = C.RedHi)
+                            Eyebrow("Before you start", color = C.RedHi)
                             Txt("Straight talk.", Modifier.padding(top = 8.dp), size = 34.sp, weight = FontWeight.Light, spacing = (-0.8).sp)
                         }
-                        Point(Icons.Rounded.Cloud, "Talks to Bluelink's cloud", "Commands go phone → Hyundai → your car's modem, so both need network. It uses Hyundai's unofficial API and can break if they change it.")
-                        Point(Icons.Rounded.Lock, "Not a digital key", "It can't open the car without signal and doesn't replace the physical key.")
-                        Point(Icons.Rounded.Place, "Parked location only", "Bluelink reports where the car is parked, not live GPS, so Places shows parking spots.")
-                        Point(Icons.Rounded.Speed, "Reads don't wake the car", "Background snapshots use Bluelink's cached data. Only your own commands reach the car.")
+                        Point(Icons.Rounded.Cloud, "Cloud remote, not a key", "Commands go phone → Hyundai → the car's modem, so the car needs mobile coverage too. It does not replace the physical key.")
+                        Point(Icons.Rounded.Speed, "The car's modem sleeps", "Refresh asks the car for fresh data and can take up to a minute. Waking it is not guaranteed, so the app tells you if the car is asleep.")
+                        Point(Icons.Rounded.Place, "Parked location only", "Bluelink reports where the car is parked, not live GPS. Places shows parking spots, not a driving track.")
+                        Point(Icons.Rounded.Cloud, "Unofficial and independent", "It uses Bluelink's undocumented API. Hyundai can change it at any time and some features may stop until the app is updated.")
+                        Point(Icons.Rounded.Shield, "Your data stays yours", "Password and PIN are encrypted on this phone and sent only to Hyundai. No ads, no analytics, no account with us.")
                     }
                     else -> {
                         Column {
                             Eyebrow("Set up", color = C.RedHi)
                             Txt("Make it yours.", Modifier.padding(top = 8.dp), size = 34.sp, weight = FontWeight.Light, spacing = (-0.8).sp)
-                            Txt("Stored on this phone. Change any of it later in Settings.", Modifier.padding(top = 8.dp), size = 14.sp, color = C.Dim)
+                            Txt("Three quick things. All of it stays on this phone and can be changed later in Settings.", Modifier.padding(top = 8.dp), size = 14.sp, color = C.Dim)
                         }
                         Panel(Modifier.fillMaxWidth()) {
                             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Rounded.Fingerprint, null, tint = C.RedHi, modifier = Modifier.size(28.dp))
                                 Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
                                     Txt("Confirm with fingerprint or PIN", size = 15.sp, weight = FontWeight.SemiBold)
-                                    Txt("Before unlock, engine start and stop.", size = 12.sp, color = C.Dim)
+                                    Txt("Asked before unlock, engine start and stop.", size = 12.sp, color = C.Dim)
                                 }
                                 Toggle(bio, { bio = it })
                             }
                         }
                         Field("Fuel tank (litres)", tank, { tank = it.filter { c -> c.isDigit() || c == '.' }.take(5) }, keyboard = KeyboardType.Decimal, hint = "50")
-                        Field("Petrol price per litre (optional)", price, { price = it.filter { c -> c.isDigit() || c == '.' }.take(6) }, keyboard = KeyboardType.Decimal, hint = "for running-cost insights")
+                        Field("Fuel price per litre, ₹ (optional)", price, { price = it.filter { c -> c.isDigit() || c == '.' }.take(6) }, keyboard = KeyboardType.Decimal, hint = "used for cost per km")
                     }
                 }
             }
