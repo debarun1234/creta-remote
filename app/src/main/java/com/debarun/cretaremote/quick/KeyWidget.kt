@@ -19,8 +19,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import java.text.NumberFormat
-import java.util.Locale
 
 /**
  * Home-screen widgets. Locking, stopping the engine and Lights fire straight from a widget. Unlocking, starting and
@@ -28,10 +26,14 @@ import java.util.Locale
  * not be able to open or start the car by itself.
  */
 abstract class CarWidget : AppWidgetProvider() {
-    abstract fun build(c: Context): RemoteViews
+    abstract fun build(c: Context, id: Int): RemoteViews
 
     override fun onUpdate(context: Context, mgr: AppWidgetManager, ids: IntArray) {
-        ids.forEach { mgr.updateAppWidget(it, build(context)) }
+        ids.forEach { mgr.updateAppWidget(it, build(context, it)) }
+    }
+
+    override fun onDeleted(context: Context, ids: IntArray) {
+        ids.forEach { WidgetPrefs.remove(context, it) }
     }
 
     fun refresh(c: Context) {
@@ -43,9 +45,9 @@ abstract class CarWidget : AppWidgetProvider() {
 
 /** 4 x 1: lock key that follows the car's state, lights, ignition, boot. */
 class KeyWidget : CarWidget() {
-    override fun build(c: Context): RemoteViews {
+    override fun build(c: Context, id: Int): RemoteViews {
         val v = RemoteViews(c.packageName, R.layout.widget_key)
-        val st = Widgets.style(c)
+        val st = Widgets.style(c, id)
         Widgets.background(v, st)
         Widgets.lockKey(c, v, st)
         Widgets.ignitionKey(c, v, st)
@@ -77,38 +79,12 @@ class KeyWidget : CarWidget() {
 
 /** 2 x 1: just the lock key and the ignition key. */
 class MiniWidget : CarWidget() {
-    override fun build(c: Context): RemoteViews {
+    override fun build(c: Context, id: Int): RemoteViews {
         val v = RemoteViews(c.packageName, R.layout.widget_mini)
-        val st = Widgets.style(c)
+        val st = Widgets.style(c, id)
         Widgets.background(v, st)
         Widgets.lockKey(c, v, st)
         Widgets.ignitionKey(c, v, st)
-        return v
-    }
-}
-
-/** 4 x 2: lock state, fuel, range and odometer at a glance. Tap to open the app. */
-class StatusWidget : CarWidget() {
-    override fun build(c: Context): RemoteViews {
-        val v = RemoteViews(c.packageName, R.layout.widget_status)
-        val s = WidgetState.read(c)
-        val st = Widgets.style(c)
-        Widgets.background(v, st)
-        val nf = NumberFormat.getIntegerInstance(Locale("en", "IN"))
-        v.setTextViewText(R.id.s_title, s.title.ifBlank { "Creta" })
-        val state = when (s.locked) { true -> "Locked"; false -> "Unlocked"; null -> "Status unknown" } + if (s.engine) " · Engine on" else ""
-        v.setTextViewText(R.id.s_state, state)
-        v.setTextColor(R.id.s_state, if (s.locked == true) 0xFF36E39A.toInt() else if (s.locked == false) 0xFFFFB020.toInt() else st.dim)
-        v.setTextViewText(R.id.s_fuel, s.fuel?.let { "${it.toInt()}%" } ?: "--")
-        v.setTextViewText(R.id.s_range, s.dte?.let { "${nf.format(it.toInt())} km" } ?: "--")
-        v.setTextViewText(R.id.s_odo, s.odo?.let { "${nf.format(it.toInt())} km" } ?: "--")
-        v.setProgressBar(R.id.s_bar, 100, (s.fuel ?: 0.0).toInt().coerceIn(0, 100), false)
-        v.setTextViewText(R.id.s_ago, if (s.ts > 0) "Updated ${com.debarun.cretaremote.ui.agoText(s.ts)}" else "Open the app to sync")
-        v.setTextViewText(R.id.s_tyre, if (s.tyre.isBlank()) "Tyres --" else "Tyres ${s.tyre}")
-        v.setTextColor(R.id.s_tyre, if (s.tyreWarn) 0xFFFFB020.toInt() else st.dim)
-        for (id in listOf(R.id.s_title, R.id.s_fuel, R.id.s_range, R.id.s_odo)) v.setTextColor(id, st.text)
-        for (id in listOf(R.id.s_fuel_l, R.id.s_range_l, R.id.s_odo_l, R.id.s_ago)) v.setTextColor(id, st.dim)
-        v.setOnClickPendingIntent(R.id.w_root, Widgets.open(c, "HOME"))
         return v
     }
 }
@@ -123,16 +99,17 @@ object Widgets {
         val dim = if (dark) 0xFF9AA1B2.toInt() else 0xFF5B6272.toInt()
     }
 
-    /** Reads the theme and transparency chosen in the app's Settings. */
-    fun style(c: Context): Style {
-        val p = c.getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val dark = when (p.getInt("wtheme", 0)) {
-            1 -> true
-            2 -> false
-            else -> (c.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    fun phoneIsDark(c: Context): Boolean = (c.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+    /** The look chosen for this one widget on its settings screen (light and solid until chosen otherwise). */
+    fun style(c: Context, id: Int): Style {
+        val cfg = WidgetPrefs.get(c, id)
+        val dark = when (cfg.theme) {
+            WidgetPrefs.DARK -> true
+            WidgetPrefs.AUTO -> phoneIsDark(c)
+            else -> false
         }
-        val alpha = when (p.getInt("wbg", 1)) { 0 -> 245; 1 -> 150; else -> 0 }
-        return Style(dark, alpha)
+        return Style(dark, cfg.alpha)
     }
 
     fun background(v: RemoteViews, st: Style) {

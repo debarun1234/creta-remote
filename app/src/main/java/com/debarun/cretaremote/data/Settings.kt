@@ -18,10 +18,6 @@ data class Settings(
     val notifyCommands: Boolean = true,
     val notifyAlerts: Boolean = true,
     val keepAwake: Boolean = true,
-    /** 0 follow the phone, 1 dark, 2 light */
-    val widgetTheme: Int = 0,
-    /** 0 solid, 1 glass, 2 clear */
-    val widgetBg: Int = 1,
     /** Litres to keep in the tank on this trip; alerts fire as it nears this. */
     val fuelLimitL: Int = FuelWatch.DEFAULT,
     /** When the Bluelink password was last set (ms), 0 = not tracked yet. */
@@ -59,8 +55,6 @@ class SettingsStore(context: Context) {
         notifyCommands = p.getBoolean("ncmd", true),
         notifyAlerts = p.getBoolean("nalert", true),
         keepAwake = p.getBoolean("awake", true),
-        widgetTheme = p.getInt("wtheme", 0),
-        widgetBg = p.getInt("wbg", 1),
         fuelLimitL = p.getInt("fuelLimit", FuelWatch.DEFAULT).coerceIn(FuelWatch.MIN, FuelWatch.MAX),
         passwordSetAt = p.getLong("pwSetAt", 0L),
         passwordDays = p.getInt("pwDays", 90).coerceIn(1, 365),
@@ -83,8 +77,6 @@ class SettingsStore(context: Context) {
             .putBoolean("ncmd", s.notifyCommands)
             .putBoolean("nalert", s.notifyAlerts)
             .putBoolean("awake", s.keepAwake)
-            .putInt("wtheme", s.widgetTheme)
-            .putInt("wbg", s.widgetBg)
             .putInt("fuelLimit", s.fuelLimitL)
             .putLong("pwSetAt", s.passwordSetAt)
             .putInt("pwDays", s.passwordDays)

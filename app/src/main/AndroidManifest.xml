@@ -31,6 +31,15 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
+        <activity
+            android:name=".quick.WidgetConfigActivity"
+            android:exported="true"
+            android:label="Widget settings">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".quick.LockTile"
             android:exported="true"

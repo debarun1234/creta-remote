@@ -11,7 +11,7 @@
     <string name="widget_desc">Lock/unlock, lights, ignition and boot</string>
     <string name="tile_start">Start Creta</string>
     <string name="widget_mini_desc">Lock/unlock and ignition</string>
-    <string name="widget_status_desc">Lock state, fuel, range and odometer</string>
+    <string name="widget_status_desc">Lock state, fuel, range, odometer, tyres and next fill-up: shows more as you make it bigger.</string>
     <string name="widget_label_keywidget">Creta key</string>
     <string name="widget_label_miniwidget">Creta lock and ignition</string>
     <string name="widget_label_statuswidget">Creta status</string>

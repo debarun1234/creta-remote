@@ -357,10 +357,8 @@ class Repository(private val ctx: Context) {
     }
 
     fun updateSettings(s: Settings) {
-        val old = _data.value.settings
         settingsStore.save(s)
         _data.update { it.copy(settings = s) }
-        if (old.widgetTheme != s.widgetTheme || old.widgetBg != s.widgetBg) com.debarun.cretaremote.quick.Widgets.updateAll(ctx)
         _data.update { it.copy(insights = computeInsights(it.car)) }
     }
 

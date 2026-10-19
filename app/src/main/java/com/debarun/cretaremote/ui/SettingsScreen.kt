@@ -134,11 +134,8 @@ fun SettingsScreen(d: AppData, vm: AppViewModel) {
         Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Eyebrow("Home-screen widgets")
-                Txt("Add them from your home screen's widget picker: Creta key, lock and ignition, and status.", size = 12.sp, color = C.Dim)
-                Txt("Theme", size = 14.sp, weight = FontWeight.Medium)
-                Segmented(listOf("Auto", "Dark", "Light"), s.widgetTheme) { vm.saveSettings(s.copy(widgetTheme = it)) }
-                Txt("Background", size = 14.sp, weight = FontWeight.Medium)
-                Segmented(listOf("Solid", "Glass", "Clear"), s.widgetBg) { vm.saveSettings(s.copy(widgetBg = it)) }
+                Txt("Add them from your home screen's widget picker. Each widget has its own settings: light, dark or auto theme, and a solid or transparent background with adjustable transparency. They open when you add a widget, and again from the widget's long-press menu.", size = 12.sp, color = C.Dim)
+                Txt("Fuel meter, dash, next fill-up, tyres and status redraw themselves as you resize them and have a round refresh button for a live sync. The key and lock-and-ignition widgets stay as buttons.", size = 12.sp, color = C.Dim)
             }
         }
 
@@ -339,7 +336,7 @@ private fun PermRow(title: String, sub: String, on: Boolean, onAllow: () -> Unit
 
 /** A small pill-style choice row. */
 @Composable
-private fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     Row(Modifier.fillMaxWidth().clip(shape).background(C.Surface2).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         options.forEachIndexed { i, label ->

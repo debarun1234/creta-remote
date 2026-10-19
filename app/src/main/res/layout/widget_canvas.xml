@@ -8,8 +8,7 @@
         android:id="@+id/w_img"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="fitXY"
-        android:src="@drawable/widget_bg" />
+        android:scaleType="fitXY" />
 
     <!-- invisible tap areas for the refresh button the widget draws itself; one is shown depending on the look -->
     <ImageView
