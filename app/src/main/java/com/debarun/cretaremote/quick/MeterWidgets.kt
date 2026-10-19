@@ -46,7 +46,7 @@ abstract class MeterWidget : CarWidget() {
             var ok = false
             try {
                 // null from refresh = another sync is already running, which is as good as ours
-                ok = withTimeoutOrNull(55_000) { repo.refresh(live = true, quiet = true) ?: true } == true
+                ok = withTimeoutOrNull(55_000) { repo.syncLive(quiet = true) ?: true } == true
             } finally {
                 WidgetState.saveSync(context, if (ok) 0 else 2)
                 pending.finish()

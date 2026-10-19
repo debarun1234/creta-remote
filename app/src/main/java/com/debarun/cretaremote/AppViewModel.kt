@@ -17,7 +17,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repo.bootstrap() }
     }
 
-    fun refresh(live: Boolean) { viewModelScope.launch { repo.refresh(live) } }
+    fun refresh(live: Boolean) { viewModelScope.launch { if (live) repo.syncLive() else repo.refresh(false) } }
     fun run(cmd: Cmd) { viewModelScope.launch { repo.run(cmd) } }
     fun cancelCmd() = repo.cancelCmd()
     fun saveTyreLog(psi: List<Double?>) = repo.saveTyreLog(psi)

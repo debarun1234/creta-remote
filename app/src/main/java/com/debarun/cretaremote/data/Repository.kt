@@ -372,6 +372,9 @@ class Repository(private val ctx: Context) {
 
     private data class Fetched(val status: JSONObject, val loc: JSONObject?, val maint: JSONObject?)
 
+    /** Why the last refresh failed, so the "Car asleep" chip is only shown when the car really did not answer. */
+    @Volatile private var lastRefreshError: Throwable? = null
+
     /** [live] = ask the car for fresh data (slower, wakes modem). Otherwise read the cloud copy (fast). */
     /** Returns true when the car answered, false when it did not, null when another refresh was already running. */
     suspend fun refresh(live: Boolean, quiet: Boolean = false): Boolean? {
@@ -394,8 +397,10 @@ class Repository(private val ctx: Context) {
                 }
             }
             applyFetched(f)
+            lastRefreshError = null
             return true
         } catch (e: Exception) {
+            lastRefreshError = e
             _data.update { it.copy(refreshing = false, error = if (quiet) it.error else friendly(e)) }
             return false
         } finally {
@@ -799,20 +804,32 @@ class Repository(private val ctx: Context) {
         }
     }
 
-    /** One wake-up call, used by the keep-awake loop and when the Quick Settings panel is opened. */
-    suspend fun wakePing() {
-        if (_data.value.cmd.busy || !hasCreds()) return
+    /**
+     * Live sync: asks the car for fresh data, which is what wakes its modem, and keeps the "Waking car / Car awake / Car asleep"
+     * chip honest. A car that does not answer in time is "asleep"; a network or sign-in problem says nothing about the car, so
+     * the chip is left as it was. Returns true when the car answered, false when it did not, null when nothing was done.
+     */
+    suspend fun syncLive(quiet: Boolean = false): Boolean? {
+        if (_data.value.cmd.busy || !hasCreds()) return null
         lastPing = System.currentTimeMillis()
         val before = _data.value.link
         _data.update { it.copy(link = Link.WAKING) }
-        val ok = refresh(live = true, quiet = true)
+        val ok = refresh(live = true, quiet = quiet)
+        val e = lastRefreshError
+        val noAnswer = e is java.net.SocketTimeoutException || (e is BluelinkException && e.code in setOf("4081", "9999", "5921"))
         _data.update {
-            when (ok) {
-                true -> it.copy(link = Link.AWAKE, linkAt = System.currentTimeMillis())
-                false -> it.copy(link = Link.ASLEEP, linkAt = System.currentTimeMillis())
-                null -> it.copy(link = before)
+            when {
+                ok == true -> it.copy(link = Link.AWAKE, linkAt = System.currentTimeMillis())
+                ok == false && noAnswer -> it.copy(link = Link.ASLEEP, linkAt = System.currentTimeMillis())
+                else -> it.copy(link = before)
             }
         }
+        return ok
+    }
+
+    /** One wake-up call, used by the keep-awake loop and when the Quick Settings panel is opened. */
+    suspend fun wakePing() {
+        syncLive(quiet = true)
     }
 
     /** For callers outside the app (Quick Settings tiles): wake the car if it has not been pinged lately. */
