@@ -52,14 +52,13 @@ fun StageTrack(phase: Phase, modifier: Modifier = Modifier) {
         Canvas(Modifier.fillMaxWidth().height(18.dp)) {
             val r = 6.dp.toPx()
             val y = size.height / 2f
-            val x0 = r
             val x2 = size.width - r
-            val xs = listOf(x0, (x0 + x2) / 2f, x2)
+            val xs = listOf(r, (r + x2) / 2f, x2)
             val lineCol = C.Line
             val doneCol = if (failed) C.Red else C.Green
-            drawLine(lineCol, Offset(x0, y), Offset(x2, y), 2.dp.toPx(), StrokeCap.Round)
-            val fx = x0 + (x2 - x0) * progress
-            drawLine(if (failed) C.Red else C.Cyan, Offset(x0, y), Offset(fx, y), 2.dp.toPx(), StrokeCap.Round)
+            drawLine(lineCol, Offset(r, y), Offset(x2, y), 2.dp.toPx(), StrokeCap.Round)
+            val fx = r + (x2 - r) * progress
+            drawLine(if (failed) C.Red else C.Cyan, Offset(r, y), Offset(fx, y), 2.dp.toPx(), StrokeCap.Round)
             if (busy) {
                 // a travelling dash toward the next node, so it visibly keeps working while the car wakes
                 val from = fx

@@ -8,12 +8,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.widget.RemoteViews
+import androidx.core.content.edit
 import com.debarun.cretaremote.CretaApp
 import com.debarun.cretaremote.MainActivity
 import com.debarun.cretaremote.R
 import com.debarun.cretaremote.bluelink.CarState
 import com.debarun.cretaremote.bluelink.tyreAttention
 import com.debarun.cretaremote.data.Cmd
+import kotlin.math.roundToLong
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -66,7 +69,7 @@ class KeyWidget : CarWidget() {
             try {
                 repo.runDetached(cmd)
                 // keep the process alive until the command settles (or give up after 40 s)
-                withTimeoutOrNull(40_000) {
+                withTimeoutOrNull(40.seconds) {
                     repo.data.first { it.cmd.cmd == cmd && it.cmd.busy }
                     repo.data.first { !it.cmd.busy }
                 }
@@ -208,13 +211,13 @@ object WidgetState {
 
     /** Refresh-button state for the drawn widgets. */
     fun saveSync(c: Context, state: Int) {
-        prefs(c).edit().putInt("sync", state).putLong("syncAt", System.currentTimeMillis()).apply()
+        prefs(c).edit { putInt("sync", state).putLong("syncAt", System.currentTimeMillis()) }
         Widgets.updateAll(c)
     }
 
     /** Called after every fetch. */
     fun save(c: Context, car: CarState, title: String, tyre: String, psi: List<Double?> = car.tyrePsi) {
-        prefs(c).edit().apply {
+        prefs(c).edit {
             if (car.locked == null) remove("locked") else putBoolean("locked", car.locked)
             putBoolean("engine", car.engineOn == true)
             car.fuelPct?.let { putFloat("fuel", it.toFloat()) } ?: remove("fuel")
@@ -230,40 +233,41 @@ object WidgetState {
             putBoolean("tyreAny", car.tyreWarnAny)
             putString("psi", psi.joinToString(",") { it?.toString() ?: "" })
             if (prefs(c).getInt("sync", 0) == 2) putInt("sync", 0) // any good fetch clears an old failure
-        }.apply()
+        }
         Widgets.updateAll(c)
     }
 
     fun saveTyre(c: Context, line: String, warn: Boolean, psi: List<Double?>? = null) {
-        prefs(c).edit().putString("tyre", line).putBoolean("tyreWarn", warn).apply {
+        prefs(c).edit {
+            putString("tyre", line).putBoolean("tyreWarn", warn)
             if (psi != null) putString("psi", psi.joinToString(",") { it?.toString() ?: "" })
-        }.apply()
+        }
         Widgets.updateAll(c)
     }
 
     /** Fuel numbers from the Fuel log maths, for the planner and gauge widgets. Only redraws when something changed. */
     fun savePlan(c: Context, litres: Double?, tank: Double, limit: Int, fillAt: Double?, kmToLimit: Double?, kmpl: Double?, rough: Boolean, costKm: Double?) {
-        val sig = listOf(litres?.let { Math.round(it * 10) }, Math.round(tank), limit, fillAt?.let { Math.round(it) }, kmToLimit?.let { Math.round(it) }, kmpl?.let { Math.round(it * 10) }, rough, costKm?.let { Math.round(it * 100) }).joinToString("|")
+        val sig = listOf(litres?.let { (it * 10).roundToLong() }, tank.roundToLong(), limit, fillAt?.roundToLong(), kmToLimit?.roundToLong(), kmpl?.let { (it * 10).roundToLong() }, rough, costKm?.let { (it * 100).roundToLong() }).joinToString("|")
         val p = prefs(c)
         if (p.getString("plan_sig", null) == sig) return
-        p.edit().apply {
+        p.edit {
             fun put(k: String, v: Double?) { if (v == null) remove(k) else putFloat(k, v.toFloat()) }
             put("litres", litres); putFloat("tank", tank.toFloat()); putInt("limit", limit)
             put("fillAt", fillAt); put("kmToLimit", kmToLimit); put("kmpl", kmpl); putBoolean("rough", rough); put("costKm", costKm)
             putString("plan_sig", sig)
-        }.apply()
+        }
         Widgets.updateAll(c)
     }
 
     fun saveLocked(c: Context, locked: Boolean) {
         if (read(c).locked == locked) return
-        prefs(c).edit().putBoolean("locked", locked).apply()
+        prefs(c).edit { putBoolean("locked", locked) }
         Widgets.updateAll(c)
     }
 
     fun saveEngine(c: Context, engine: Boolean) {
         if (read(c).engine == engine) return
-        prefs(c).edit().putBoolean("engine", engine).apply()
+        prefs(c).edit { putBoolean("engine", engine) }
         Widgets.updateAll(c)
     }
 }

@@ -95,7 +95,6 @@ data class TripEntry(
     val raw: String? = null,
 )
 
-data class TripDay(val day: String, val count: Int, val summary: TripSummary?, val trips: List<TripEntry>)
 
 enum class ActionResult { SUCCESS, FAILED, PENDING, TIMEOUT, UNKNOWN }
 
@@ -158,10 +157,10 @@ internal fun parseBluelinkTime(v: Any?): Long? {
 }
 
 /** Bar, psi or kPa to psi; null when it is not a plausible tyre pressure. */
-internal fun normalisePsi(v: Double): Double? = when {
-    v in 0.5..6.0 -> v * 14.5038
-    v in 10.0..80.0 -> v
-    v in 80.0..600.0 -> v * 0.145038
+internal fun normalisePsi(v: Double): Double? = when (v) {
+    in 0.5..6.0 -> v * 14.5038
+    in 10.0..80.0 -> v
+    in 80.0..600.0 -> v * 0.145038
     else -> null
 }
 

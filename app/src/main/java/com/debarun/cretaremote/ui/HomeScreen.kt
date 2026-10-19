@@ -1,10 +1,8 @@
 package com.debarun.cretaremote.ui
 
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -33,14 +31,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Campaign
-import androidx.compose.material.icons.rounded.Lightbulb
-import androidx.compose.material.icons.rounded.Navigation
 import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Remove
-import androidx.compose.material.icons.rounded.Thermostat
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -55,7 +48,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -65,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import com.debarun.cretaremote.AppViewModel
 import com.debarun.cretaremote.bluelink.CarState
 import com.debarun.cretaremote.data.AppData
@@ -73,6 +66,7 @@ import com.debarun.cretaremote.data.Cmd
 import com.debarun.cretaremote.data.Link
 import com.debarun.cretaremote.data.Settings
 import com.debarun.cretaremote.data.carTitle
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 
@@ -80,13 +74,13 @@ import kotlin.math.PI
 fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, onClimate: () -> Unit, onCar: () -> Unit, onActivity: () -> Unit) {
     val car = d.car
     val ctx = LocalContext.current
-    val now by produceState(System.currentTimeMillis()) { while (true) { delay(30_000); value = System.currentTimeMillis() } }
+    val now by produceState(System.currentTimeMillis()) { while (true) { delay(30.seconds); value = System.currentTimeMillis() } }
     val lockBusy = d.cmd.busy && (d.cmd.cmd == Cmd.LOCK || d.cmd.cmd == Cmd.UNLOCK)
 
     fun openMaps(navigate: Boolean) {
         val lat = car?.lat ?: return
         val lon = car.lon ?: return
-        val uri = if (navigate) Uri.parse("google.navigation:q=$lat,$lon&mode=d") else Uri.parse("geo:$lat,$lon?q=$lat,$lon(My Creta)")
+        val uri = if (navigate) "google.navigation:q=$lat,$lon&mode=d".toUri() else "geo:$lat,$lon?q=$lat,$lon(My Creta)".toUri()
         try { ctx.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) { /* no maps app */ }
     }
 
@@ -299,7 +293,7 @@ private fun ErrorCard(msg: String, onRetry: () -> Unit) {
 // ================================================================== climate sheet
 
 @Composable
-fun ClimateSheet(s: Settings, running: Boolean, onClose: () -> Unit, onStart: (Double, Int) -> Unit, onStop: () -> Unit) {
+fun ClimateSheet(s: Settings, running: Boolean, onStart: (Double, Int) -> Unit, onStop: () -> Unit) {
     var temp by remember { mutableDoubleStateOf(s.climateTempC.coerceIn(14.0, 29.5)) }
     var mins by remember { mutableIntStateOf(s.climateMinutes) }
     val p by animateFloatAsState(((temp - 14.0) / 15.5).toFloat(), tween(450, easing = FastOutSlowInEasing), label = "temp")

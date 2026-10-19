@@ -2,7 +2,6 @@ package com.debarun.cretaremote.ui
 
 import android.Manifest
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.tween
@@ -41,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.debarun.cretaremote.data.AppData
@@ -77,7 +77,7 @@ fun PlacesScreen(d: AppData) {
     fun open(uri: String, chooser: Boolean = false) {
         try {
             val i = if (chooser) Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, uri), "Share car location")
-            else Intent(Intent.ACTION_VIEW, Uri.parse(uri))
+            else Intent(Intent.ACTION_VIEW, uri.toUri())
             ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: Exception) { /* nothing can handle it */ }
     }

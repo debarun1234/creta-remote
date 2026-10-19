@@ -29,7 +29,6 @@ object Notifier {
     const val ID_PASSWORD = 303
 
     fun ensureChannels(ctx: Context) {
-        if (Build.VERSION.SDK_INT < 26) return
         val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
         nm.createNotificationChannel(
             NotificationChannel(CH_COMMANDS, "Command results", NotificationManager.IMPORTANCE_DEFAULT)
@@ -103,10 +102,10 @@ object Notifier {
 
     /** The short alert, a couple of litres before the limit. */
     fun fuelHeadsUp(ctx: Context, litres: Double, limit: Int) =
-        post(ctx, ID_FUEL_HEADS_UP, CH_ALERTS, "Fuel nearing your ${limit} L limit", "About ${"%.1f".format(litres)} L left. Plan a fill-up.")
+        post(ctx, ID_FUEL_HEADS_UP, CH_ALERTS, "Fuel nearing your $limit L limit", "About ${"%.1f".format(litres)} L left. Plan a fill-up.")
 
     /** The alarm: loud, ongoing and repeating until the driver taps "I'll fill up". */
-    @SuppressLint("MissingPermission")
+    @SuppressLint("MissingPermission", "FullScreenIntentPolicy")
     fun fuelAlarm(ctx: Context, litres: Double, limit: Int) {
         val nm = NotificationManagerCompat.from(ctx)
         if (!nm.areNotificationsEnabled()) return
@@ -120,7 +119,7 @@ object Notifier {
             ctx, 2, Intent(ctx, com.debarun.cretaremote.quick.FuelAckReceiver::class.java).setAction(com.debarun.cretaremote.quick.FuelAckReceiver.ACK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val text = "Only about ${"%.1f".format(litres)} L left, at your ${limit} L limit. Fill the car."
+        val text = "Only about ${"%.1f".format(litres)} L left, at your $limit L limit. Fill the car."
         val n = NotificationCompat.Builder(ctx, CH_FUEL_ALARM)
             .setSmallIcon(R.drawable.ic_stat_car)
             .setColor(0xFFE3192D.toInt())
@@ -133,7 +132,7 @@ object Notifier {
             .setOngoing(true)
             .setOnlyAlertOnce(false)
             .setContentIntent(open)
-            .setFullScreenIntent(open, true)
+            .apply { if (canUseFullScreen(ctx)) setFullScreenIntent(open, true) }
             .addAction(0, "I'll fill up", ack)
             .build()
         n.flags = n.flags or android.app.Notification.FLAG_INSISTENT // keep ringing until dismissed
@@ -142,6 +141,10 @@ object Notifier {
         } catch (e: SecurityException) {
         }
     }
+
+    /** From Android 14 the user can withdraw full-screen notifications from an app, so ask first. */
+    private fun canUseFullScreen(ctx: Context): Boolean =
+        Build.VERSION.SDK_INT < 34 || ctx.getSystemService(NotificationManager::class.java)?.canUseFullScreenIntent() == true
 
     fun cancelFuelAlarm(ctx: Context) = NotificationManagerCompat.from(ctx).cancel(ID_FUEL_ALARM)
 }

@@ -346,14 +346,14 @@ private fun HeatCalendar(month: String, byDay: Map<String, DayRow>, selected: St
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (c in 0 until 7) {
                 val dayNum = r * 7 + c - offset + 1
-                if (dayNum < 1 || dayNum > daysInMonth) {
+                if (dayNum !in 1..daysInMonth) {
                     Box(Modifier.weight(1f).aspectRatio(1f))
                 } else {
                     val key = month + "%02d".format(dayNum)
                     val row = byDay[key]
                     val k = row?.dist ?: 0.0
-                    val inten = (k / maxKm).toFloat()
-                    val a by animateFloatAsState(if (k > 0) 0.18f + 0.82f * inten else 0f, tween(700, (r * 7 + c) * 18), label = "cal")
+                    val intensity = (k / maxKm).toFloat()
+                    val a by animateFloatAsState(if (k > 0) 0.18f + 0.82f * intensity else 0f, tween(700, (r * 7 + c) * 18), label = "cal")
                     val isSel = key == selected
                     val border = when {
                         isSel -> Color.White
@@ -433,7 +433,7 @@ private fun DayCard(sel: DayRow, ins: com.debarun.cretaremote.data.FuelInsights)
     }
 }
 
-/** 24 hours as a strip: each pill is one trip - where it sits is when it started, how long it is is how long it drove. */
+/** 24 hours as a strip: each pill is one trip: its position is when it started and its length is how long it lasted. */
 @Composable
 private fun DayTimeline(day: String, entries: List<TripEntry>) {
     val reveal = remember(day) { Animatable(0f) }
@@ -548,7 +548,7 @@ private fun TripCard(number: Int, e: TripEntry, dayDist: Double, order: Int) {
     }
 }
 
-/** A 0..max km/h track: the filled part is the average speed, the tick is the top speed. */
+/** A track from 0 to max km/h: the filled part is the average speed, the tick is the top speed. */
 @Composable
 private fun SpeedMeter(avg: Double, max: Double?, order: Int) {
     val scaleMax = maxOf(120.0, (max ?: 0.0) * 1.1)

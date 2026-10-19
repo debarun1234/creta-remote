@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
@@ -215,7 +214,6 @@ private fun Shell(
             ClimateSheet(
                 data.settings,
                 running = data.car?.engineOn == true,
-                onClose = { climate = false },
                 onStart = { temp, mins ->
                     vm.saveSettings(data.settings.copy(climateTempC = temp, climateMinutes = mins))
                     climate = false

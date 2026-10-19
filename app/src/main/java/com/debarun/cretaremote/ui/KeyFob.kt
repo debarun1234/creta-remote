@@ -107,7 +107,7 @@ private fun IgnitionButton(running: Boolean, busy: Boolean, onClick: () -> Unit)
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
-            if (busy) Spinner(accent) else Box(Modifier.fillMaxSize().clip(CircleShape).background(accent))
+            if (busy) Spinner(accent, Modifier.fillMaxSize()) else Box(Modifier.fillMaxSize().clip(CircleShape).background(accent))
             if (!busy) Icon(Icons.Rounded.PowerSettingsNew, null, tint = Color.White, modifier = Modifier.size(22.dp))
         }
         Column(Modifier.weight(1f)) {
@@ -154,7 +154,7 @@ private fun UtilityChip(icon: ImageVector, label: String, modifier: Modifier, en
 }
 
 @Composable
-private fun Spinner(color: Color, modifier: Modifier = Modifier.fillMaxSize(), width: Float = 3f) {
+private fun Spinner(color: Color, modifier: Modifier = Modifier, width: Float = 3f) {
     val inf = rememberInfiniteTransition(label = "spin")
     val a by inf.animateFloat(0f, 360f, infiniteRepeatable(tween(900, easing = LinearEasing)), label = "a")
     Canvas(modifier) {

@@ -9,8 +9,10 @@ import android.graphics.Canvas
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
+import androidx.core.graphics.createBitmap
 import com.debarun.cretaremote.CretaApp
 import com.debarun.cretaremote.R
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -46,7 +48,7 @@ abstract class MeterWidget : CarWidget() {
             var ok = false
             try {
                 // null from refresh = another sync is already running, which is as good as ours
-                ok = withTimeoutOrNull(55_000) { repo.syncLive(quiet = true) ?: true } == true
+                ok = withTimeoutOrNull(55.seconds) { repo.syncLive(quiet = true) ?: true } == true
             } finally {
                 WidgetState.saveSync(context, if (ok) 0 else 2)
                 pending.finish()
@@ -67,7 +69,7 @@ abstract class MeterWidget : CarWidget() {
         var scale = c.resources.displayMetrics.density
         val px = wDp * scale * hDp * scale
         if (px > 900_000f) scale *= sqrt(900_000f / px) // keep the picture well under the launcher's size limit
-        val bmp = Bitmap.createBitmap((wDp * scale).toInt().coerceAtLeast(1), (hDp * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+        val bmp = createBitmap((wDp * scale).toInt().coerceAtLeast(1), (hDp * scale).toInt().coerceAtLeast(1))
         val cv = Canvas(bmp)
         cv.scale(scale, scale)
         val colors = MeterColors(st.dark, st.bg, st.text, st.dim, st.alpha)

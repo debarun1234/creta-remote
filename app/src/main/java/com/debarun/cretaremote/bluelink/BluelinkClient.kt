@@ -1,7 +1,7 @@
 package com.debarun.cretaremote.bluelink
 
-import android.net.Uri
 import android.util.Base64
+import androidx.core.net.toUri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Cookie
@@ -10,7 +10,6 @@ import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
@@ -69,14 +68,14 @@ class BluelinkClient {
         // 2) sign in -> redirect url carrying the auth code
         val body = JSONObject().put("email", email).put("password", password).toString()
         var signinCode = 0
-        val signin = c.newCall(
+        val signInReply = c.newCall(
             Request.Builder().url("${USER}signin")
                 .header("User-Agent", UA)
                 .post(body.toByteArray().toRequestBody(JSON)).build(),
         ).execute().use { r -> signinCode = r.code; r.body?.string().orEmpty() }
-        val json = try { JSONObject(signin) } catch (e: Exception) { null }
+        val json = try { JSONObject(signInReply) } catch (e: Exception) { null }
         val redirect = json?.optString("redirectUrl").orEmpty()
-        val code = if (redirect.isNotEmpty()) Uri.parse(redirect).getQueryParameter("code") else null
+        val code = if (redirect.isNotEmpty()) redirect.toUri().getQueryParameter("code") else null
         if (code.isNullOrEmpty()) {
             // Bluelink answers {"step":5} when the account password has expired and must be changed in the official app (confirmed on a real account).
             if (json != null && redirect.isEmpty() && json.has("step")) {
@@ -86,8 +85,8 @@ class BluelinkClient {
             val said = json?.let { j ->
                 listOf("errMsg", "errorMessage", "error_description", "message", "resMsg", "error", "errorCode", "resCode", "retCode")
                     .mapNotNull { k -> j.optString(k).takeIf { it.isNotBlank() }?.let { "$k=$it" } }.joinToString(", ")
-            }.orEmpty().ifEmpty { signin.replace(Regex("\\s+"), " ").take(120) }
-            val redirectErr = if (redirect.isNotEmpty()) Uri.parse(redirect).getQueryParameter("error") else null
+            }.orEmpty().ifEmpty { signInReply.replace(Regex("\\s+"), " ").take(120) }
+            val redirectErr = if (redirect.isNotEmpty()) redirect.toUri().getQueryParameter("error") else null
             val detail = listOfNotNull("HTTP $signinCode", "seed $seedCode".takeIf { seedCode !in 200..399 }, redirectErr?.let { "redirect error=$it" }, said.takeIf { it.isNotEmpty() })
                 .joinToString(" · ")
             throw BluelinkException("Sign-in failed ($detail). If your email and password are right, Bluelink may be blocking or down. Try the official app, then wait and retry.", auth = true)
@@ -226,7 +225,7 @@ class BluelinkClient {
         val action = if (lock) "close" else "open"
         val req = if (v.ccs2 == 0) {
             val p = JSONObject().put("action", action).put("deviceId", s.deviceId)
-            Request.Builder().url("${SPA}vehicles/${v.id}/control/door").withAuth(s, v.ccs2).post(p.toString().toByteArray().toRequestBody(JSON)).build()
+            Request.Builder().url("${SPA}vehicles/${v.id}/control/door").withAuth(s, 0).post(p.toString().toByteArray().toRequestBody(JSON)).build()
         } else {
             val p = JSONObject().put("command", action)
             Request.Builder().url("${SPA2}vehicles/${v.id}/ccs2/control/door").withControl(s, v.ccs2).post(p.toString().toByteArray().toRequestBody(JSON)).build()
@@ -356,9 +355,6 @@ class BluelinkClient {
     }
 
     // ---------------------------------------------------------------- plumbing
-
-    /** Used by the repository to build a session with a verified control token. */
-    internal suspend fun withControlToken(s: Session, pin: String): Session = controlToken(s, pin)
 
     /** Aborts every request currently in flight (used when the user cancels a command). */
     fun cancelInFlight() = http.dispatcher.cancelAll()

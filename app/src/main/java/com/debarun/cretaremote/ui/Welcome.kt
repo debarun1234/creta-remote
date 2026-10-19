@@ -1,5 +1,6 @@
 package com.debarun.cretaremote.ui
 
+import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
@@ -48,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -65,7 +67,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.debarun.cretaremote.AppViewModel
@@ -90,6 +91,8 @@ fun WelcomeSplash(ready: Boolean, signedIn: Boolean, onDone: () -> Unit) {
 
     val ctx = LocalContext.current
     // drop the official logo in app/src/main/res/drawable-nodpi/hyundai_logo.png (transparent, light-coloured) and it shows here
+    // looked up by name on purpose: the logo file is optional, so a direct R reference would break the build without it
+    @SuppressLint("DiscouragedApi")
     val logoRes = remember { ctx.resources.getIdentifier("hyundai_logo", "drawable", ctx.packageName) }
     val rise = remember { Animatable(0f) }
     val bar = remember { Animatable(0f) }
@@ -162,7 +165,7 @@ private const val STEPS = 3
 /** First install only: what the app is, what it can't do, then local preferences. Ends at the sign-in screen. */
 @Composable
 fun SetupFlow(d: AppData, vm: AppViewModel) {
-    var step by rememberSaveable { mutableStateOf(0) }
+    var step by rememberSaveable { mutableIntStateOf(0) }
     var tank by rememberSaveable { mutableStateOf("50") }
     var price by rememberSaveable { mutableStateOf("") }
     var bio by rememberSaveable { mutableStateOf(true) }

@@ -2,6 +2,7 @@ package com.debarun.cretaremote.data
 
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * One fill-up as the driver logs it.
@@ -13,8 +14,8 @@ data class Fill(val ts: Long, val odoKm: Double, val litres: Double, val pricePe
 }
 
 /**
- * The fuel burnt between two consecutive FULL fills.
- * Everything poured in after the first full fill (partial top-ups included) up to and including the second full fill
+ * The fuel burnt between two consecutive FULL fill-ups.
+ * Everything poured in after the first full fill-up (partial top-ups included) up to and including the second full fill-up
  * is exactly what the car burnt over that distance, so km / litres is the real economy of that stretch.
  */
 data class Leg(
@@ -30,7 +31,6 @@ data class Leg(
 ) {
     val km: Double get() = toOdo - fromOdo
     val kmpl: Double get() = if (litres > 0) km / litres else 0.0
-    val costPerKm: Double get() = if (km > 0) cost / km else 0.0
     val days: Double get() = max(0.0, (toTs - fromTs) / 86_400_000.0)
 }
 
@@ -50,7 +50,7 @@ data class LedgerStats(
     val index: Int? = null,                       // 100 = your own average, recent vs everything before it
     val litresTotal: Double = 0.0,
     val spendTotal: Double = 0.0,
-    val priceAvg: Double? = null,                 // litre-weighted over priced fills
+    val priceAvg: Double? = null,                 // weighted by litres, over priced fill-ups
     val priceLast: Double? = null,
     val priceIsFallback: Boolean = false,
     val costPerKm: Double? = null,                // actual: spend over valid legs / their km
@@ -58,8 +58,8 @@ data class LedgerStats(
     val kmPerDay: Double? = null,
     val costPerDay: Double? = null,
     val costPerMonth: Double? = null,
-    val openKm: Double? = null,                   // driven since the last full fill
-    val openLitresAdded: Double = 0.0,            // partial top-ups since the last full fill
+    val openKm: Double? = null,                   // driven since the last full fill-up
+    val openLitresAdded: Double = 0.0,            // partial top-ups since the last full fill-up
     val estLitres: Double? = null,                // ledger-based estimate of what is in the tank now
     val provisionalKmpl: Double? = null,          // rough economy since the last brim-full fill, from the gauge, until a real stretch exists
     val provisionalLitres: Double? = null,        // litres burnt since that fill by the same estimate
@@ -83,7 +83,7 @@ object FuelLedger {
         if (f.litres <= 0.0) return "Enter the litres you filled."
         if (f.litres > tankL + 0.01) return "That is more than the ${tankL.toInt()} L tank. Check the litres, or change the tank size in Settings."
         if (f.odoKm <= 0.0) return "Enter the odometer reading at the pump."
-        if (f.pricePerL < 0.0 || f.pricePerL > 500.0) return "Price per litre looks wrong."
+        if (f.pricePerL !in 0.0..500.0) return "Price per litre looks wrong."
         if (f.ts > now + 3_600_000L) return "That date is in the future."
         val before = existing.filter { it.ts < f.ts }.maxByOrNull { it.ts }
         val after = existing.filter { it.ts > f.ts }.minByOrNull { it.ts }
@@ -92,7 +92,7 @@ object FuelLedger {
         return null
     }
 
-    /** Builds legs between consecutive full fills. Fills are ordered by odometer then time, so a mistyped date cannot reorder the car's history. */
+    /** Builds legs between consecutive full fill-ups. Fills are ordered by odometer then time, so a mistyped date cannot reorder the car's history. */
     fun legs(fills: List<Fill>, fallbackPrice: Double): List<Leg> {
         val sorted = fills.sortedWith(compareBy({ it.odoKm }, { it.ts }))
         val fullIdx = sorted.indices.filter { sorted[it].full }
@@ -107,7 +107,7 @@ object FuelLedger {
             val kmpl = if (litres > 0) km / litres else 0.0
             val note = when {
                 km < MIN_LEG_KM -> "Too short to measure (under ${MIN_LEG_KM.toInt()} km)"
-                kmpl < MIN_KMPL || kmpl > MAX_KMPL -> "Looks wrong. A fill-up may be missing or mistyped"
+                kmpl !in MIN_KMPL..MAX_KMPL -> "Looks wrong. A fill-up may be missing or mistyped"
                 else -> ""
             }
             out += Leg(sorted[a].ts, sorted[b].ts, sorted[a].odoKm, sorted[b].odoKm, litres, cost, inside.size, note.isEmpty(), note)
@@ -152,7 +152,7 @@ object FuelLedger {
         val index = if (ok.size >= 3) {
             val head = pooled(ok.dropLast(2))
             val tail = pooled(ok.takeLast(2))
-            if (head != null && tail != null && head > 0) Math.round(tail / head * 100.0).toInt() else null
+            if (head != null && tail != null && head > 0) (tail / head * 100.0).roundToInt() else null
         } else null
 
         val km = ok.sumOf { it.km }

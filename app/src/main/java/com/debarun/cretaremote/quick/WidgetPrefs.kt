@@ -1,6 +1,7 @@
 package com.debarun.cretaremote.quick
 
 import android.content.Context
+import androidx.core.content.edit
 
 /**
  * Look of each placed widget, set on the widget's own settings screen: theme, and a solid or transparent background
@@ -24,14 +25,14 @@ object WidgetPrefs {
     }
 
     fun set(c: Context, id: Int, cfg: Cfg) {
-        prefs(c).edit()
-            .putInt("theme_$id", cfg.theme)
-            .putBoolean("clear_$id", cfg.clear)
-            .putInt("tr_$id", cfg.transparency)
-            .apply()
+        prefs(c).edit {
+            putInt("theme_$id", cfg.theme)
+            putBoolean("clear_$id", cfg.clear)
+            putInt("tr_$id", cfg.transparency)
+        }
     }
 
     fun remove(c: Context, id: Int) {
-        prefs(c).edit().remove("theme_$id").remove("clear_$id").remove("tr_$id").apply()
+        prefs(c).edit { remove("theme_$id").remove("clear_$id").remove("tr_$id") }
     }
 }

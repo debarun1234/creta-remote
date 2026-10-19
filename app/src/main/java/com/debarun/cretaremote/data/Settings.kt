@@ -1,6 +1,7 @@
 package com.debarun.cretaremote.data
 
 import android.content.Context
+import androidx.core.content.edit
 
 data class Settings(
     val tankLitres: Double = 50.0,
@@ -61,25 +62,25 @@ class SettingsStore(context: Context) {
     )
 
     fun save(s: Settings) {
-        p.edit()
-            .putFloat("tank", s.tankLitres.toFloat())
-            .putFloat("price", s.fuelPricePerL.toFloat())
-            .putBoolean("bio", s.confirmBiometric)
-            .putFloat("temp", s.climateTempC.toFloat())
-            .putInt("mins", s.climateMinutes)
-            .putBoolean("onboarded", s.onboarded)
-            .putString("vin", s.vin)
-            .putString("pt", s.powertrain)
-            .putString("tr", s.transmission)
-            .putInt("year", s.modelYear)
-            .putInt("svcKm", s.serviceKm)
-            .putInt("svcMonths", s.serviceMonths)
-            .putBoolean("ncmd", s.notifyCommands)
-            .putBoolean("nalert", s.notifyAlerts)
-            .putBoolean("awake", s.keepAwake)
-            .putInt("fuelLimit", s.fuelLimitL)
-            .putLong("pwSetAt", s.passwordSetAt)
-            .putInt("pwDays", s.passwordDays)
-            .apply()
+        p.edit {
+            putFloat("tank", s.tankLitres.toFloat())
+            putFloat("price", s.fuelPricePerL.toFloat())
+            putBoolean("bio", s.confirmBiometric)
+            putFloat("temp", s.climateTempC.toFloat())
+            putInt("mins", s.climateMinutes)
+            putBoolean("onboarded", s.onboarded)
+            putString("vin", s.vin)
+            putString("pt", s.powertrain)
+            putString("tr", s.transmission)
+            putInt("year", s.modelYear)
+            putInt("svcKm", s.serviceKm)
+            putInt("svcMonths", s.serviceMonths)
+            putBoolean("ncmd", s.notifyCommands)
+            putBoolean("nalert", s.notifyAlerts)
+            putBoolean("awake", s.keepAwake)
+            putInt("fuelLimit", s.fuelLimitL)
+            putLong("pwSetAt", s.passwordSetAt)
+            putInt("pwDays", s.passwordDays)
+        }
     }
 }

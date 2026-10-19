@@ -1,6 +1,7 @@
 package com.debarun.cretaremote.data
 
 import com.debarun.cretaremote.bluelink.CarState
+import kotlin.math.roundToLong
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -23,7 +24,7 @@ class AnalyticsTest {
                 fuel -= km / 14.0 / 50.0 * 100.0
                 t += day / 4
                 if (fuel < 25.0) fuel = 92.0
-                out += Snapshot(t, odo, Math.round(fuel).toDouble(), null, true, false)
+                out += Snapshot(t, odo, fuel.roundToLong().toDouble(), null, locked = true, engine = false)
             }
         }
         return out

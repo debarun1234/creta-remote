@@ -16,12 +16,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import kotlin.math.cos
 import kotlinx.coroutines.launch
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.*
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import com.debarun.cretaremote.data.Phase
@@ -155,8 +154,8 @@ fun FuelGauge(pct: Double?, litres: Double?, low: Boolean, modifier: Modifier = 
                 val r2 = r1 + len
                 drawLine(
                     if (on) c.copy(alpha = 0.9f) else C.Line,
-                    Offset(center.x + kotlin.math.cos(a) * r1, center.y + kotlin.math.sin(a) * r1),
-                    Offset(center.x + kotlin.math.cos(a) * r2, center.y + kotlin.math.sin(a) * r2),
+                    Offset(center.x + cos(a) * r1, center.y + sin(a) * r1),
+                    Offset(center.x + cos(a) * r2, center.y + sin(a) * r2),
                     strokeWidth = 1.6.dp.toPx(), cap = StrokeCap.Round,
                 )
             }
@@ -171,7 +170,7 @@ fun FuelGauge(pct: Double?, litres: Double?, low: Boolean, modifier: Modifier = 
             }
             // head dot
             val ha = (135f + 270f * p) * (PI.toFloat() / 180f)
-            val head = Offset(center.x + kotlin.math.cos(ha) * r, center.y + kotlin.math.sin(ha) * r)
+            val head = Offset(center.x + cos(ha) * r, center.y + sin(ha) * r)
             drawCircle(Color.White, rw * 0.28f, head)
 
             // liquid in the middle
@@ -210,7 +209,7 @@ fun FuelGauge(pct: Double?, litres: Double?, low: Boolean, modifier: Modifier = 
 // ------------------------------------------------------------------ range road bar
 
 @Composable
-fun RangeRoad(km: Double?, maxKm: Double = 650.0, modifier: Modifier = Modifier) {
+fun RangeRoad(km: Double?, modifier: Modifier = Modifier, maxKm: Double = 650.0) {
     val p by animateIn(((km ?: 0.0) / maxKm).coerceIn(0.0, 1.0).toFloat(), 1600)
     val inf = rememberInfiniteTransition(label = "road")
     val flow by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "flow")
@@ -238,7 +237,7 @@ fun RangeRoad(km: Double?, maxKm: Double = 650.0, modifier: Modifier = Modifier)
 // ------------------------------------------------------------------ charts
 
 @Composable
-fun LineChart(values: List<Double>, modifier: Modifier = Modifier, color: Color = C.Cyan, unit: String = "") {
+fun LineChart(values: List<Double>, modifier: Modifier = Modifier, color: Color = C.Cyan) {
     val progress = remember { Animatable(0f) }
     LaunchedEffect(values) { progress.snapTo(0f); progress.animateTo(1f, tween(1400, easing = FastOutSlowInEasing)) }
     val inf = rememberInfiniteTransition(label = "dot")
@@ -375,42 +374,6 @@ fun LockSlider(locked: Boolean?, busy: Boolean, onToggle: () -> Unit, modifier: 
             contentAlignment = Alignment.Center,
         ) {
             Icon(if (isLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen, null, tint = Color.White, modifier = Modifier.size(26.dp))
-        }
-    }
-}
-
-@Composable
-fun ActionTile(
-    icon: ImageVector,
-    label: String,
-    modifier: Modifier = Modifier,
-    accent: Color = C.Red,
-    busy: Boolean = false,
-    enabled: Boolean = true,
-    onClick: () -> Unit,
-) {
-    val src = remember { MutableInteractionSource() }
-    val pressed by src.collectIsPressedAsState()
-    val sc by animateFloatAsState(if (pressed) 0.93f else 1f, spring(0.55f, Spring.StiffnessMedium), label = "press")
-    Panel(
-        modifier.graphicsLayer { scaleX = sc; scaleY = sc; alpha = if (enabled) 1f else 0.45f }
-            .clickable(interactionSource = src, indication = null, enabled = enabled && !busy) { onClick() },
-        radius = 22.dp,
-    ) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(46.dp)) {
-                if (busy) {
-                    val inf = rememberInfiniteTransition(label = "spin")
-                    val a by inf.animateFloat(0f, 360f, infiniteRepeatable(tween(900, easing = LinearEasing)), label = "a")
-                    Canvas(Modifier.fillMaxSize()) {
-                        rotate(a) { drawArc(accent, 0f, 100f, false, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round)) }
-                    }
-                } else {
-                    Box(Modifier.fillMaxSize().clip(CircleShape).background(accent.copy(alpha = 0.14f)))
-                }
-                Icon(icon, null, tint = accent, modifier = Modifier.size(24.dp))
-            }
-            Txt(label, Modifier.padding(top = 10.dp), size = 12.sp, color = C.Text, weight = FontWeight.Medium, align = TextAlign.Center, maxLines = 1)
         }
     }
 }

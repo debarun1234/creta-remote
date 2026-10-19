@@ -19,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 
 /** Permission state and the shortcuts into system settings. */
 object Perms {
@@ -30,7 +31,7 @@ object Perms {
 
     /** Android only shows each permission dialog a couple of times, so remember that we already asked. */
     fun asked(ctx: Context, key: String): Boolean = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(key, false)
-    fun markAsked(ctx: Context, key: String) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(key, true).apply()
+    fun markAsked(ctx: Context, key: String) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(key, true) }
 
     fun openAppSettings(ctx: Context) = start(
         ctx, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", ctx.packageName, null)),

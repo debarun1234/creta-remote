@@ -24,4 +24,9 @@
     <string name="widget_dash_desc">Range with fuel and 12V rings. Resize it to change its look.</string>
     <string name="widget_planner_desc">Odometer reading for your next fill-up. Resize it to change its look.</string>
     <string name="widget_tyres_desc">Four tyres on a top view of the car. Resize it to change its look.</string>
+    <string name="key_lock">Lock</string>
+    <string name="key_lights">Lights</string>
+    <string name="key_start">Start</string>
+    <string name="key_boot">Boot</string>
+    <string name="widget_canvas_desc">Creta widget</string>
 </resources>

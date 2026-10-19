@@ -13,6 +13,8 @@ import com.debarun.cretaremote.bluelink.StateParser
 import com.debarun.cretaremote.bluelink.TripEntry
 import com.debarun.cretaremote.bluelink.TripSummary
 import com.debarun.cretaremote.bluelink.Vehicle
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -154,7 +156,7 @@ class Repository(private val ctx: Context) {
                     activity = loadActivity(),
                     activityUnread = loadActivity().count { a -> a.ts > activitySeen },
                     tyreLog = loadTyreLog(),
-                    fuel = FuelWatchUi(store.kvGet("fw")?.let { runCatching { JSONObject(it).optInt("stage", 0) }.getOrNull() } ?: 0, litresOf(car)),
+                    fuel = FuelWatchUi(store.kvGet("fw")?.let { raw -> runCatching { JSONObject(raw).optInt("stage", 0) }.getOrNull() } ?: 0, litresOf(car)),
                 )
             }
         }
@@ -375,7 +377,7 @@ class Repository(private val ctx: Context) {
     /** Why the last refresh failed, so the "Car asleep" chip is only shown when the car really did not answer. */
     @Volatile private var lastRefreshError: Throwable? = null
 
-    /** [live] = ask the car for fresh data (slower, wakes modem). Otherwise read the cloud copy (fast). */
+    /** [live] = ask the car for fresh data (slower, wakes modem). Otherwise, read the cloud copy (fast). */
     /** Returns true when the car answered, false when it did not, null when another refresh was already running. */
     suspend fun refresh(live: Boolean, quiet: Boolean = false): Boolean? {
         if (!refreshLock.tryLock()) return null
@@ -799,7 +801,7 @@ class Repository(private val ctx: Context) {
         keepJob = scope.launch {
             while (AppForeground.visible && System.currentTimeMillis() - lastActivity < KEEP_AWAKE_MS) {
                 if (!_data.value.cmd.busy && System.currentTimeMillis() - lastPing > PING_EVERY_MS) wakePing()
-                delay(15_000)
+                delay(15.seconds)
             }
         }
     }
@@ -921,7 +923,7 @@ class Repository(private val ctx: Context) {
             var polls = 0
             while (System.currentTimeMillis() < deadline) {
                 // poll every second for the first 12 s (most commands finish there), then ease off to stay clear of Bluelink's rate limit
-                delay(when { polls == 0 -> 700L; polls < 12 -> 1_000L; else -> 2_000L }); polls++
+                delay(when { polls == 0 -> 700.milliseconds; polls < 12 -> 1.seconds; else -> 2.seconds }); polls++
                 val secs = (System.currentTimeMillis() - started) / 1000
                 setCmd(cmd, Phase.WAITING, if (secs < 3) "Waiting for the car..." else "Waiting for the car... ${secs}s")
                 result = try {
@@ -945,7 +947,7 @@ class Repository(private val ctx: Context) {
                     _data.update { it.copy(link = Link.AWAKE, linkAt = System.currentTimeMillis()) }
                     lastActivity = System.currentTimeMillis()
                     log(Outcome.SUCCESS, doneText(cmd))
-                    scope.launch { delay(4_000); refresh(live = false) }
+                    scope.launch { delay(4.seconds); refresh(live = false) }
                 }
                 ActionResult.FAILED -> {
                     setCmd(cmd, Phase.FAIL, "The car rejected the command.")
@@ -973,7 +975,7 @@ class Repository(private val ctx: Context) {
         } finally {
             cmdJob = null
         }
-        scope.launch { delay(if (_data.value.cmd.phase == Phase.CANCELLED) 5_000 else 3_500); _data.update { if (it.cmd.busy) it else it.copy(cmd = CmdUi()) } }
+        scope.launch { delay(if (_data.value.cmd.phase == Phase.CANCELLED) 5.seconds else 3_500.milliseconds); _data.update { if (it.cmd.busy) it else it.copy(cmd = CmdUi()) } }
     }
 
     /** Adds the PIN-verified control token when there is one; routes that need it are skipped when there isn't. */

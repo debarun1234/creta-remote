@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import androidx.core.content.edit
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -30,14 +31,14 @@ class Vault(context: Context) {
 
     fun put(name: String, value: String?) {
         if (value == null) {
-            prefs.edit().remove(name).apply()
+            prefs.edit { remove(name) }
             return
         }
         val c = Cipher.getInstance("AES/GCM/NoPadding")
         c.init(Cipher.ENCRYPT_MODE, key())
         val ct = c.doFinal(value.toByteArray(Charsets.UTF_8))
         val blob = c.iv + ct
-        prefs.edit().putString(name, Base64.encodeToString(blob, Base64.NO_WRAP)).apply()
+        prefs.edit { putString(name, Base64.encodeToString(blob, Base64.NO_WRAP)) }
     }
 
     fun get(name: String): String? {
@@ -52,7 +53,7 @@ class Vault(context: Context) {
         }
     }
 
-    fun clear() = prefs.edit().clear().apply()
+    fun clear() = prefs.edit { clear() }
 
     private companion object {
         const val ALIAS = "creta_remote_vault"

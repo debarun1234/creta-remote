@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/w_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -9,6 +10,8 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="fitXY"
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
         android:src="@drawable/widget_bg" />
 
     <LinearLayout
@@ -17,21 +20,21 @@
         android:gravity="center"
         android:orientation="horizontal"
         android:padding="8dp">
-        <LinearLayout android:id="@+id/w_lock" style="@style/KeyCell">
-            <ImageView android:id="@+id/i_lock" style="@style/KeyIcon" android:src="@drawable/ic_widget_locked" />
-            <TextView android:id="@+id/t_lock" style="@style/KeyLabel" android:text="Lock" />
+        <LinearLayout android:id="@+id/w_lock" style="@style/KeyCell" tools:ignore="UseCompoundDrawables">
+            <ImageView android:id="@+id/i_lock" style="@style/KeyIcon" android:contentDescription="@null" android:importantForAccessibility="no" android:src="@drawable/ic_widget_locked" />
+            <TextView android:id="@+id/t_lock" style="@style/KeyLabel" android:text="@string/key_lock" />
         </LinearLayout>
-        <LinearLayout android:id="@+id/w_lights" style="@style/KeyCell">
-            <ImageView android:id="@+id/i_lights" style="@style/KeyIcon" android:src="@drawable/ic_shortcut_lights" />
-            <TextView android:id="@+id/t_lights" style="@style/KeyLabel" android:text="Lights" />
+        <LinearLayout android:id="@+id/w_lights" style="@style/KeyCell" tools:ignore="UseCompoundDrawables">
+            <ImageView android:id="@+id/i_lights" style="@style/KeyIcon" android:contentDescription="@null" android:importantForAccessibility="no" android:src="@drawable/ic_shortcut_lights" />
+            <TextView android:id="@+id/t_lights" style="@style/KeyLabel" android:text="@string/key_lights" />
         </LinearLayout>
-        <LinearLayout android:id="@+id/w_ign" style="@style/KeyCell">
-            <ImageView android:id="@+id/i_ign" style="@style/KeyIcon" android:src="@drawable/ic_shortcut_start" />
-            <TextView android:id="@+id/t_ign" style="@style/KeyLabel" android:text="Start" />
+        <LinearLayout android:id="@+id/w_ign" style="@style/KeyCell" tools:ignore="UseCompoundDrawables">
+            <ImageView android:id="@+id/i_ign" style="@style/KeyIcon" android:contentDescription="@null" android:importantForAccessibility="no" android:src="@drawable/ic_shortcut_start" />
+            <TextView android:id="@+id/t_ign" style="@style/KeyLabel" android:text="@string/key_start" />
         </LinearLayout>
-        <LinearLayout android:id="@+id/w_boot" style="@style/KeyCell">
-            <ImageView android:id="@+id/i_boot" style="@style/KeyIcon" android:src="@drawable/ic_shortcut_boot" />
-            <TextView android:id="@+id/t_boot" style="@style/KeyLabel" android:text="Boot" />
+        <LinearLayout android:id="@+id/w_boot" style="@style/KeyCell" tools:ignore="UseCompoundDrawables">
+            <ImageView android:id="@+id/i_boot" style="@style/KeyIcon" android:contentDescription="@null" android:importantForAccessibility="no" android:src="@drawable/ic_shortcut_boot" />
+            <TextView android:id="@+id/t_boot" style="@style/KeyLabel" android:text="@string/key_boot" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

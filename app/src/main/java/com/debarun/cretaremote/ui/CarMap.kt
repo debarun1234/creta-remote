@@ -123,7 +123,7 @@ object TileCache {
     private val mem = object : LruCache<String, ImageBitmap>(64 * 1024 * 1024) {
         override fun sizeOf(key: String, value: ImageBitmap): Int = value.width * value.height * 4
     }
-    private val inflight = ConcurrentHashMap<String, Boolean>()
+    private val inFlight = ConcurrentHashMap<String, Boolean>()
     private val failedAt = ConcurrentHashMap<String, Long>()
 
     @Volatile private var http: OkHttpClient? = null
@@ -144,7 +144,7 @@ object TileCache {
         if (mem.get(k) != null) return false
         val bad = failedAt[k]
         if (bad != null && System.currentTimeMillis() - bad < 15_000L) return false
-        if (inflight.putIfAbsent(k, true) != null) return false
+        if (inFlight.putIfAbsent(k, true) != null) return false
         return try {
             withContext(Dispatchers.IO) {
                 val req = Request.Builder()
@@ -168,7 +168,7 @@ object TileCache {
             failedAt[k] = System.currentTimeMillis()
             false
         } finally {
-            inflight.remove(k)
+            inFlight.remove(k)
         }
     }
 }
