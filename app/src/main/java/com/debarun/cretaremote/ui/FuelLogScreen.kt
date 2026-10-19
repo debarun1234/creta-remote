@@ -37,6 +37,7 @@ import com.debarun.cretaremote.data.AppData
 import com.debarun.cretaremote.data.Fill
 import com.debarun.cretaremote.data.FuelLedger
 import java.text.SimpleDateFormat
+import kotlin.math.max
 import java.util.Locale
 
 private fun rs(v: Double?, dec: Int = 0): String = if (v == null) "—" else "₹" + Fmt.n(v, dec)
@@ -278,27 +279,73 @@ private fun Stat(label: String, value: String, modifier: Modifier = Modifier, co
 
 @Composable
 private fun TripCostPanel(d: AppData) {
-    val l = d.insights.ledger
+    val ins = d.insights
+    val l = ins.ledger
+    val e = l.kmplNow
+    val limit = d.settings.fuelLimitL
+    val litresNow = ins.litresLeft
+    val odo = d.car?.odometerKm
     var km by remember { mutableStateOf("") }
-    val q = km.toDoubleOrNull()?.let { FuelLedger.quote(it, l) }
+    val tripKm = km.toDoubleOrNull()?.takeIf { it > 0 }
+    val q = tripKm?.let { ins.tripCost(it) }
+    val range = tripKm?.let { FuelLedger.quote(it, l) }
+
     Panel(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Eyebrow("Trip cost")
-            if (l.kmplNow == null) {
+            Eyebrow("Trip cost and next fill-up")
+            if (e == null) {
                 Txt("Available once you have a fill-up and have driven a bit since.", size = 13.sp, color = C.Dim)
             } else {
-                Field("Distance (km)", km, { km = cleanNum(it) }, keyboard = KeyboardType.Decimal, hint = "e.g. 120")
-                if (!l.usable) Txt("Provisional, from the rough economy above.", size = 11.sp, color = C.Amber)
-                if (q != null) {
+                // what the car reports right now
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Stat("Fuel now (car)", litresNow?.let { "${Fmt.n(it, 1)} L" } ?: "—", Modifier.weight(1f), C.Cyan)
+                    Stat("Odometer", odo?.let { "${Fmt.grouped(it.toLong())} km" } ?: "—", Modifier.weight(1f))
+                }
+                Txt("From the car's last report, ${agoText(d.fetchedAt)}. Economy used: ${Fmt.n(e, 1)} km/L" + if (l.usable) "." else " (rough, until your next brim-full fill).", size = 11.sp, color = C.Faint)
+
+                // next fill-up, by odometer
+                val fill = ins.fillAtOdo
+                if (fill != null && ins.kmToLimit != null) {
+                    Column {
+                        Eyebrow("Fill up at")
+                        Txt("${Fmt.grouped(fill.toLong())} km", size = 26.sp, weight = FontWeight.Light, color = C.Green)
+                        Txt(
+                            if (ins.kmToLimit <= 0.5) "You are at or below your $limit L fuel limit. Fill up now."
+                            else "In ${Fmt.n(ins.kmToLimit, 0)} km, when the tank reaches your $limit L limit" + (ins.refuelBy?.let { ", around ${dayText(it)} at your usual pace" } ?: "") + ".",
+                            size = 12.sp, color = C.Dim,
+                        )
+                    }
+                }
+
+                Field("Plan a trip (km)", km, { km = cleanNum(it) }, keyboard = KeyboardType.Decimal, hint = "e.g. 120")
+                if (q != null && tripKm != null) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Stat("Fuel", "${Fmt.n(q.litres, 1)} L", Modifier.weight(1f))
+                        Stat("Fuel for the trip", "${Fmt.n(q.litres, 1)} L", Modifier.weight(1f))
                         Stat("Cost", rs(q.cost), Modifier.weight(1f), C.Cyan)
                     }
-                    if (q.costLow != null && q.costHigh != null) {
-                        Txt("Likely between ${rs(q.costLow)} and ${rs(q.costHigh)}, from your best and worst recent stretch.", size = 12.sp, color = C.Dim)
+                    if (range?.costLow != null && range.costHigh != null) {
+                        Txt("Likely ${rs(range.costLow)} to ${rs(range.costHigh)}, from your best and worst recent stretch.", size = 12.sp, color = C.Dim)
                     }
+                    if (litresNow != null) {
+                        val after = litresNow - q.litres
+                        val kmAfter = max(0.0, (after - limit) * e)
+                        when {
+                            after < 0 -> Txt("Not enough fuel for this trip: about ${Fmt.n(-after, 1)} L short. Fill up before you leave or on the way.", size = 13.sp, color = C.RedHi)
+                            after < limit -> Txt(
+                                "You would reach your $limit L limit " + (ins.kmToLimit?.let { "${Fmt.n(it, 0)} km into the trip" } ?: "during the trip") +
+                                    (fill?.let { ", at odometer ${Fmt.grouped(it.toLong())} km" } ?: "") + ". About ${Fmt.n(max(0.0, after), 1)} L left when you arrive. Plan a fill-up on the way.",
+                                size = 13.sp, color = C.Amber,
+                            )
+                            else -> Txt(
+                                "About ${Fmt.n(after, 1)} L left when you arrive" + (odo?.let { ", at odometer ${Fmt.grouped((it + tripKm).toLong())} km" } ?: "") +
+                                    ". Then about ${Fmt.n(kmAfter, 0)} km more before your $limit L limit.",
+                                size = 13.sp, color = C.Green,
+                            )
+                        }
+                    }
+                    if (!l.usable) Txt("Provisional, from the rough economy.", size = 11.sp, color = C.Amber)
                 } else {
-                    Txt("Uses your recent economy and latest fuel price.", size = 12.sp, color = C.Faint)
+                    Txt("Enter a distance for its fuel, cost, and what is left when you arrive.", size = 12.sp, color = C.Faint)
                 }
             }
         }

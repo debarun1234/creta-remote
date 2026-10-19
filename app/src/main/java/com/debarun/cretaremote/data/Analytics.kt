@@ -21,10 +21,15 @@ data class FuelInsights(
     val costPerKm: Double? = null,
     val costPerDay: Double? = null,
     val dailyKm: List<Pair<String, Double>> = emptyList(), // yyyyMMdd -> km, last 14 days
-)
+    val fallbackPrice: Double = 0.0,
+    val kmToLimit: Double? = null,         // km until the tank reaches the fuel-alert limit
+    val fillAtOdo: Double? = null,         // the odometer reading at which that happens
+) {
+    /** One economy and one price for every cost on every screen. [ts] = when the distance was driven (null = now). */
+    fun tripCost(km: Double, ts: Long? = null): TripCost? = FuelLedger.costOf(km, ts, ledger, fallbackPrice)
+}
 
 object Analytics {
-    private const val RESERVE_KM = 50.0
     private const val DAY_MS = 86_400_000L
 
     fun compute(snaps: List<Snapshot>, car: CarState?, s: Settings, tripDays: List<DayRow>, ledger: LedgerStats, now: Long = System.currentTimeMillis()): FuelInsights {
@@ -62,7 +67,10 @@ object Analytics {
         val paceOk = predictedRange != null && avgDaily != null && avgDaily > 0.5
         val daysLeft = if (paceOk) predictedRange!! / avgDaily!! else null
         val emptyAt = daysLeft?.let { now + (it * DAY_MS).toLong() }
-        val refuelBy = if (paceOk) now + (max(0.0, predictedRange!! - RESERVE_KM) / avgDaily!! * DAY_MS).toLong() else null
+        // "fill up" = the tank reaching the driver's own fuel-alert limit, not an arbitrary reserve
+        val kmToLimit = if (litresLeft != null && used != null) max(0.0, (litresLeft - s.fuelLimitL) * used) else null
+        val fillAtOdo = kmToLimit?.let { k -> car?.odometerKm?.plus(k) }
+        val refuelBy = if (kmToLimit != null && avgDaily != null && avgDaily > 0.5) now + (kmToLimit / avgDaily * DAY_MS).toLong() else null
 
         // ---- cost: what you actually paid per km, else latest price over economy
         val price = ledger.priceLast ?: s.fuelPricePerL.takeIf { it > 0 }
@@ -83,6 +91,9 @@ object Analytics {
             costPerKm = costPerKm,
             costPerDay = costPerDay,
             dailyKm = daily,
+            fallbackPrice = s.fuelPricePerL,
+            kmToLimit = kmToLimit,
+            fillAtOdo = fillAtOdo,
         )
     }
 }

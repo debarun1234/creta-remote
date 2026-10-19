@@ -102,6 +102,12 @@ private fun tripKind(avg: Double?, dist: Double?): Pair<String, Color>? = when {
     else -> null
 }
 
+private fun dayNoon(yyyymmdd: String): Long? = try {
+    SimpleDateFormat("yyyyMMdd", Locale.US).parse(yyyymmdd)!!.time + 12 * 3_600_000L
+} catch (e: Exception) {
+    null
+}
+
 private fun dayOfWeekMon0(yyyymmdd: String): Int? = try {
     val c = Calendar.getInstance()
     c.time = SimpleDateFormat("yyyyMMdd", Locale.US).parse(yyyymmdd)!!
@@ -123,8 +129,7 @@ fun TripsScreen(d: AppData, vm: AppViewModel) {
     val days = t?.days.orEmpty()
     val byDay = days.associateBy { it.day }
     val sel = selected?.let { byDay[it] } ?: days.lastOrNull { it.dist > 0 || it.count > 0 }
-    val kmpl = d.insights.kmplUsed
-    val price = d.insights.ledger.priceLast ?: d.settings.fuelPricePerL
+    val ins = d.insights
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding()
@@ -141,7 +146,7 @@ fun TripsScreen(d: AppData, vm: AppViewModel) {
             NavArrow(false, enabled = month < thisMonth) { month = shiftMonth(month, 1) }
         }
 
-        MonthHero(t?.summary, days, d.tripsLoading, kmpl, price)
+        MonthHero(t?.summary, days, d.tripsLoading, ins)
 
         if (days.any { it.dist > 0 }) {
             Panel(Modifier.fillMaxWidth()) {
@@ -165,14 +170,14 @@ fun TripsScreen(d: AppData, vm: AppViewModel) {
             }
         }
 
-        if (sel != null) DayCard(sel, kmpl, price)
+        if (sel != null) DayCard(sel, ins)
     }
 }
 
 // ------------------------------------------------------------------------------------------ month
 
 @Composable
-private fun MonthHero(sum: TripSummary?, days: List<DayRow>, loading: Boolean, kmpl: Double?, price: Double) {
+private fun MonthHero(sum: TripSummary?, days: List<DayRow>, loading: Boolean, ins: com.debarun.cretaremote.data.FuelInsights) {
     val dist = sum?.distKm?.takeIf { it > 0 } ?: days.sumOf { it.dist }.takeIf { it > 0 }
     val drive = sum?.driveMin ?: days.sumOf { it.drive }
     val idle = sum?.idleMin ?: days.sumOf { it.idle }
@@ -180,7 +185,10 @@ private fun MonthHero(sum: TripSummary?, days: List<DayRow>, loading: Boolean, k
     val activeDays = days.count { it.dist > 0 }
     val trips = days.sumOf { it.count }
     val best = days.maxByOrNull { it.dist }?.takeIf { it.dist > 0 }
-    val litres = if (dist != null && kmpl != null && kmpl > 0) dist / kmpl else null
+    // each day is costed at the economy and price that applied on that day, so month = sum of days and matches the day cards
+    val costs = days.filter { it.dist > 0 }.mapNotNull { ins.tripCost(it.dist, dayNoon(it.day)) }
+    val litres = if (costs.isNotEmpty()) costs.sumOf { it.litres } else dist?.let { ins.tripCost(it)?.litres }
+    val money = if (costs.isNotEmpty() && costs.all { it.cost != null }) costs.sumOf { it.cost!! } else if (costs.isEmpty()) dist?.let { ins.tripCost(it)?.cost } else null
 
     Panel(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -205,8 +213,8 @@ private fun MonthHero(sum: TripSummary?, days: List<DayRow>, loading: Boolean, k
                     Tile("Top speed", sum?.takeIf { it.maxKmh > 0 }?.let { "${Fmt.n(it.maxKmh, 0)} km/h" } ?: "—", C.RedHi),
                     Tile("Longest day", best?.let { "${Fmt.n(it.dist, 0)} km · ${yyyymmddText(it.day).substringAfter(' ')}" } ?: "—", C.Green),
                     Tile(
-                        "Fuel used (est.)",
-                        litres?.let { "${Fmt.n(it, 1)} L" + if (price > 0) " · ₹${Fmt.grouped((it * price).toLong())}" else "" } ?: "—",
+                        "Fuel used" + if (ins.ledger.usable) "" else " (rough)",
+                        litres?.let { "${Fmt.n(it, 1)} L" + (money?.let { m -> " · ₹${Fmt.grouped(m.toLong())}" } ?: "") } ?: "—",
                         C.Cyan,
                     ),
                 ),
@@ -372,10 +380,10 @@ private fun HeatCalendar(month: String, byDay: Map<String, DayRow>, selected: St
 // ------------------------------------------------------------------------------------------ day
 
 @Composable
-private fun DayCard(sel: DayRow, kmpl: Double?, price: Double) {
+private fun DayCard(sel: DayRow, ins: com.debarun.cretaremote.data.FuelInsights) {
     val entries = remember(sel.day, sel.trips) { sel.entries().sortedBy { minutesOfDay(it.startHhmmss) ?: 0 } }
     val hasMetrics = entries.any { (it.distKm ?: 0.0) > 0 || (it.driveMin ?: 0) > 0 || (it.avgKmh ?: 0.0) > 0 }
-    val litres = if (sel.dist > 0 && kmpl != null && kmpl > 0) sel.dist / kmpl else null
+    val tc = if (sel.dist > 0) ins.tripCost(sel.dist, dayNoon(sel.day)) else null
 
     Panel(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -402,8 +410,8 @@ private fun DayCard(sel: DayRow, kmpl: Double?, price: Double) {
                     Tile("Top speed", if (sel.max > 0) "${Fmt.n(sel.max, 0)} km/h" else "—", C.RedHi),
                     Tile("Per trip", if (sel.count > 0 && sel.dist > 0) "${Fmt.n(sel.dist / sel.count, 1)} km" else "—", C.Green),
                     Tile(
-                        "Fuel (est.)",
-                        litres?.let { "${Fmt.n(it, 1)} L" + if (price > 0) " · ₹${Fmt.grouped((it * price).toLong())}" else "" } ?: "—",
+                        tc?.let { "Fuel at ${Fmt.n(it.kmpl, 1)} km/L" + if (it.measured) "" else " (rough)" } ?: "Fuel",
+                        tc?.let { "${Fmt.n(it.litres, 1)} L" + (it.cost?.let { c -> " · ₹${Fmt.grouped(c.toLong())}" } ?: "") } ?: "—",
                         C.Cyan,
                     ),
                 ),

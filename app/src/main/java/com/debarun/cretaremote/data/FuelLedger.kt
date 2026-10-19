@@ -34,6 +34,9 @@ data class Leg(
     val days: Double get() = max(0.0, (toTs - fromTs) / 86_400_000.0)
 }
 
+/** Fuel and money for some distance, using one economy and one price so every screen agrees. [measured] = economy came from real full-tank stretches. */
+data class TripCost(val litres: Double, val cost: Double?, val kmpl: Double, val price: Double?, val measured: Boolean)
+
 data class TripQuote(val km: Double, val litres: Double, val cost: Double?, val costLow: Double?, val costHigh: Double?)
 
 data class LedgerStats(
@@ -58,9 +61,13 @@ data class LedgerStats(
     val openKm: Double? = null,                   // driven since the last full fill
     val openLitresAdded: Double = 0.0,            // partial top-ups since the last full fill
     val estLitres: Double? = null,                // ledger-based estimate of what is in the tank now
+    val provisionalKmpl: Double? = null,          // rough economy since the last brim-full fill, from the gauge, until a real stretch exists
+    val provisionalLitres: Double? = null,        // litres burnt since that fill by the same estimate
     val hint: String? = null,                     // why numbers are missing
 ) {
     val usable: Boolean get() = kmplRecent != null
+    /** Real economy when there is one, otherwise the rough gauge-based figure. */
+    val kmplNow: Double? get() = kmplRecent ?: provisionalKmpl
 }
 
 object FuelLedger {
@@ -121,7 +128,7 @@ object FuelLedger {
         return out
     }
 
-    fun stats(fills: List<Fill>, currentOdo: Double?, tankL: Double, settingsPrice: Double): LedgerStats {
+    fun stats(fills: List<Fill>, currentOdo: Double?, tankL: Double, settingsPrice: Double, gaugeLitres: Double? = null): LedgerStats {
         val sorted = fills.sortedWith(compareBy({ it.odoKm }, { it.ts }))
         if (sorted.isEmpty()) return LedgerStats(hint = "Log your next fill-up. Fill to the brim each time you can, and the app works out real economy.")
 
@@ -168,6 +175,18 @@ object FuelLedger {
             }
         }
 
+        // Until two brim-full fills exist there is no measured stretch. Give a clearly rough figure so the page is not empty:
+        // the tank was full at the last brim fill, so litres burnt = tank + top-ups since - what the gauge shows now.
+        var provKmpl: Double? = null
+        var provLitres: Double? = null
+        if (recent == null && openKm != null && openKm >= 50.0 && gaugeLitres != null) {
+            val burnt = tankL + openLitres - gaugeLitres
+            if (burnt >= 3.0) {
+                val e = openKm / burnt
+                if (e in MIN_KMPL..MAX_KMPL) { provKmpl = e; provLitres = burnt }
+            }
+        }
+
         val fullCount = sorted.count { it.full }
         val hint = when {
             recent != null && ok.isEmpty().not() -> if (legs.size > ok.size) "Some stretches are left out of the averages because they look wrong." else null
@@ -184,16 +203,48 @@ object FuelLedger {
             litresTotal = sorted.sumOf { it.litres }, spendTotal = spend,
             priceAvg = priceAvg, priceLast = priceLast, priceIsFallback = lastPriced == null && priceLast != null,
             costPerKm = costPerKm,
-            costPerKmNow = if (recent != null && priceLast != null) priceLast / recent else null,
+            costPerKmNow = (recent ?: provKmpl)?.let { e -> priceLast?.let { it / e } },
             kmPerDay = kmPerDay, costPerDay = costPerDay, costPerMonth = costPerDay?.let { it * 30.4 },
             openKm = openKm, openLitresAdded = openLitres, estLitres = est,
+            provisionalKmpl = provKmpl, provisionalLitres = provLitres,
             hint = hint,
         )
     }
 
+    /**
+     * The economy that applied at [ts] (null = now): the measured stretch that contains that moment,
+     * the pooled average for days before the first measured stretch, and the latest figure for days since the last brim-full fill.
+     */
+    fun economyAt(ts: Long?, s: LedgerStats): Pair<Double, Boolean>? {
+        val now = s.kmplNow
+        if (ts == null) return now?.let { it to s.usable }
+        s.legs.firstOrNull { it.valid && ts >= it.fromTs && ts <= it.toTs }?.let { return it.kmpl to true }
+        val lastFull = s.legs.lastOrNull()?.toTs ?: s.fills.lastOrNull { it.full }?.ts
+        if (lastFull != null && ts > lastFull) return now?.let { it to s.usable }
+        s.kmplAll?.let { return it to true }
+        return now?.let { it to s.usable }
+    }
+
+    /** The petrol price in force at [ts] (null = now): the latest priced fill on or before that day, else the earliest known price. */
+    fun priceAt(ts: Long?, s: LedgerStats, settingsPrice: Double): Double? {
+        val priced = s.fills.filter { it.pricePerL > 0 }.sortedBy { it.ts }
+        val fallback = settingsPrice.takeIf { it > 0 }
+        if (priced.isEmpty()) return fallback
+        if (ts == null) return s.priceLast ?: fallback
+        return (priced.lastOrNull { it.ts <= ts + 86_400_000L } ?: priced.first()).pricePerL
+    }
+
+    fun costOf(km: Double, ts: Long?, s: LedgerStats, settingsPrice: Double): TripCost? {
+        if (km <= 0) return null
+        val (e, measured) = economyAt(ts, s) ?: return null
+        val litres = km / e
+        val p = priceAt(ts, s, settingsPrice)
+        return TripCost(litres, p?.let { litres * it }, e, p, measured)
+    }
+
     /** Fuel and money for a drive of [km], from recent economy at the latest price. Range uses your best and worst recent stretch. */
     fun quote(km: Double, s: LedgerStats): TripQuote? {
-        val e = s.kmplRecent ?: return null
+        val e = s.kmplNow ?: return null
         if (km <= 0) return null
         val recent = s.legs.filter { it.valid }.takeLast(5)
         val best = recent.maxOfOrNull { it.kmpl } ?: e
