@@ -278,7 +278,7 @@ private fun Stat(label: String, value: String, modifier: Modifier = Modifier, co
 }
 
 @Composable
-private fun TripCostPanel(d: AppData) {
+fun TripCostPanel(d: AppData, compact: Boolean = false) {
     val ins = d.insights
     val l = ins.ledger
     val e = l.kmplNow
@@ -296,12 +296,16 @@ private fun TripCostPanel(d: AppData) {
             if (e == null) {
                 Txt("Available once you have a fill-up and have driven a bit since.", size = 13.sp, color = C.Dim)
             } else {
-                // what the car reports right now
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // what the car reports right now (Home already shows the gauge and odometer, so skip it there)
+                if (!compact) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Stat("Fuel now (car)", litresNow?.let { "${Fmt.n(it, 1)} L" } ?: "—", Modifier.weight(1f), C.Cyan)
                     Stat("Odometer", odo?.let { "${Fmt.grouped(it.toLong())} km" } ?: "—", Modifier.weight(1f))
                 }
-                Txt("From the car's last report, ${agoText(d.fetchedAt)}. Economy used: ${Fmt.n(e, 1)} km/L" + if (l.usable) "." else " (rough, until your next brim-full fill).", size = 11.sp, color = C.Faint)
+                Txt(
+                    (if (compact) "${litresNow?.let { "${Fmt.n(it, 1)} L" } ?: "—"} in the tank, ${agoText(d.fetchedAt)}. " else "From the car's last report, ${agoText(d.fetchedAt)}. ") +
+                        "Economy used: ${Fmt.n(e, 1)} km/L" + if (l.usable) "." else " (rough, until your next brim-full fill).",
+                    size = 11.sp, color = C.Faint,
+                )
 
                 // next fill-up, by odometer
                 val fill = ins.fillAtOdo

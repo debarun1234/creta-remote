@@ -175,6 +175,9 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
             }
         }
 
+        // ------------------------------------------------------------- trip cost + next fill-up, without leaving Home
+        TripCostPanel(d, compact = true)
+
         // ------------------------------------------------------------- tyres
         TyrePanel(car, d.tyreLog, vm::saveTyreLog)
 
