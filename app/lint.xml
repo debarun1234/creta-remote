@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- Merging this folder into mipmap-anydpi makes aapt2 drop ic_launcher ("resource mipmap/ic_launcher not found"), so the -v26 folder stays. -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="**/mipmap-anydpi-v26/**" />
+    </issue>
+</lint>
