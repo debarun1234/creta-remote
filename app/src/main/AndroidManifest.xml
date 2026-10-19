@@ -120,5 +120,41 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/status_widget" />
         </receiver>
+        <receiver
+            android:name=".quick.FuelMeterWidget"
+            android:exported="false"
+            android:label="@string/widget_label_fuelmeter">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/fuelmeter_widget" />
+        </receiver>
+        <receiver
+            android:name=".quick.DashWidget"
+            android:exported="false"
+            android:label="@string/widget_label_dash">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/dash_widget" />
+        </receiver>
+        <receiver
+            android:name=".quick.PlannerWidget"
+            android:exported="false"
+            android:label="@string/widget_label_planner">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/planner_widget" />
+        </receiver>
+        <receiver
+            android:name=".quick.TyreWidget"
+            android:exported="false"
+            android:label="@string/widget_label_tyres">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/tyres_widget" />
+        </receiver>
     </application>
 </manifest>

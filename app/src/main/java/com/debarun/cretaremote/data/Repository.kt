@@ -434,7 +434,7 @@ class Repository(private val ctx: Context) {
         if (lat != null && lon != null) recordPlace(lat, lon, car.locTime ?: now)
         checkAlerts(car, now)
         evaluateFuel(car, fromFetch = true)
-        com.debarun.cretaremote.quick.WidgetState.save(ctx, car, _data.value.settings.carTitle(), tyreLine(car))
+        com.debarun.cretaremote.quick.WidgetState.save(ctx, car, _data.value.settings.carTitle(), tyreLine(car), widgetPsi(car))
 
         _data.update {
             it.copy(
@@ -514,7 +514,12 @@ class Repository(private val ctx: Context) {
     private fun computeInsights(car: CarState?): FuelInsights {
         val s = _data.value.settings
         val ledger = FuelLedger.stats(fills(), car?.odometerKm, s.tankLitres, s.fuelPricePerL, car?.fuelPct?.let { it / 100.0 * s.tankLitres })
-        return Analytics.compute(store.snapshots(), car, s, store.days(""), ledger)
+        val ins = Analytics.compute(store.snapshots(), car, s, store.days(""), ledger)
+        // the fuel widgets show the same numbers as the Fuel log
+        com.debarun.cretaremote.quick.WidgetState.savePlan(
+            ctx, ins.litresLeft, s.tankLitres, s.fuelLimitL, ins.fillAtOdo, ins.kmToLimit, ledger.kmplNow, !ledger.usable, ins.costPerKm,
+        )
+        return ins
     }
 
     // ------------------------------------------------------------------ fill-up ledger
@@ -681,8 +686,12 @@ class Repository(private val ctx: Context) {
         val log = TyreLog(System.currentTimeMillis(), psi)
         store.kvPut("tyre_log", JSONObject().put("ts", log.ts).put("psi", JSONArray().apply { psi.forEach { put(it ?: JSONObject.NULL) } }).toString())
         _data.update { it.copy(tyreLog = log) }
-        _data.value.car?.let { com.debarun.cretaremote.quick.WidgetState.saveTyre(ctx, tyreLine(it), it.tyreAttention) }
+        _data.value.car?.let { com.debarun.cretaremote.quick.WidgetState.saveTyre(ctx, tyreLine(it), it.tyreAttention, widgetPsi(it)) }
     }
+
+    /** Per-wheel pressures for the tyre widget: the car's own numbers if it sends them, else the driver's last logged ones. */
+    private fun widgetPsi(car: CarState): List<Double?> =
+        if (car.tyrePsi.any { it != null }) car.tyrePsi else _data.value.tyreLog?.psi ?: List(4) { null }
 
     /** Widget text: the car's own numbers if it sends them, else a low-tyre warning, else the driver's last logged numbers. */
     fun tyreLine(car: CarState): String {

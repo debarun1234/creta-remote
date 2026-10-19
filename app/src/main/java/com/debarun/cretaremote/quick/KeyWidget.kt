@@ -180,6 +180,10 @@ object Widgets {
         KeyWidget().refresh(c)
         MiniWidget().refresh(c)
         StatusWidget().refresh(c)
+        FuelMeterWidget().refresh(c)
+        DashWidget().refresh(c)
+        PlannerWidget().refresh(c)
+        TyreWidget().refresh(c)
     }
 }
 
@@ -188,6 +192,10 @@ object WidgetState {
     data class S(
         val locked: Boolean?, val engine: Boolean, val fuel: Double?, val dte: Double?, val odo: Double?,
         val ts: Long, val title: String, val tyre: String, val tyreWarn: Boolean,
+        val batt: Int? = null, val litres: Double? = null, val tank: Double = 50.0, val limit: Int = 10,
+        val fillAt: Double? = null, val kmToLimit: Double? = null, val kmpl: Double? = null, val rough: Boolean = true,
+        val costKm: Double? = null, val psi: List<Double?> = List(4) { null }, val warn: List<Boolean> = List(4) { false },
+        val tyreReported: Boolean = false, val tyreAny: Boolean = false,
     )
 
     private fun prefs(c: Context) = c.getSharedPreferences("widget", Context.MODE_PRIVATE)
@@ -199,11 +207,17 @@ object WidgetState {
             if (p.contains("locked")) p.getBoolean("locked", true) else null,
             p.getBoolean("engine", false), d("fuel"), d("dte"), d("odo"), p.getLong("ts", 0L), p.getString("title", "") ?: "",
             p.getString("tyre", "") ?: "", p.getBoolean("tyreWarn", false),
+            batt = if (p.contains("batt")) p.getInt("batt", 0) else null,
+            litres = d("litres"), tank = p.getFloat("tank", 50f).toDouble(), limit = p.getInt("limit", 10),
+            fillAt = d("fillAt"), kmToLimit = d("kmToLimit"), kmpl = d("kmpl"), rough = p.getBoolean("rough", true), costKm = d("costKm"),
+            psi = (p.getString("psi", "") ?: "").split(",").let { l -> List(4) { i -> l.getOrNull(i)?.toDoubleOrNull() } },
+            warn = (p.getString("warn", "") ?: "").let { w -> List(4) { i -> w.getOrNull(i) == '1' } },
+            tyreReported = p.getBoolean("tyreReported", false), tyreAny = p.getBoolean("tyreAny", false),
         )
     }
 
     /** Called after every fetch. */
-    fun save(c: Context, car: CarState, title: String, tyre: String) {
+    fun save(c: Context, car: CarState, title: String, tyre: String, psi: List<Double?> = car.tyrePsi) {
         prefs(c).edit().apply {
             if (car.locked == null) remove("locked") else putBoolean("locked", car.locked)
             putBoolean("engine", car.engineOn == true)
@@ -214,12 +228,33 @@ object WidgetState {
             putString("title", title)
             putString("tyre", tyre)
             putBoolean("tyreWarn", car.tyreAttention)
+            car.batteryPct?.let { putInt("batt", it) } ?: remove("batt")
+            putString("warn", listOf(car.tyreWarn.fl, car.tyreWarn.fr, car.tyreWarn.rl, car.tyreWarn.rr).joinToString("") { if (it) "1" else "0" })
+            putBoolean("tyreReported", car.tyreReported)
+            putBoolean("tyreAny", car.tyreWarnAny)
+            putString("psi", psi.joinToString(",") { it?.toString() ?: "" })
         }.apply()
         Widgets.updateAll(c)
     }
 
-    fun saveTyre(c: Context, line: String, warn: Boolean) {
-        prefs(c).edit().putString("tyre", line).putBoolean("tyreWarn", warn).apply()
+    fun saveTyre(c: Context, line: String, warn: Boolean, psi: List<Double?>? = null) {
+        prefs(c).edit().putString("tyre", line).putBoolean("tyreWarn", warn).apply {
+            if (psi != null) putString("psi", psi.joinToString(",") { it?.toString() ?: "" })
+        }.apply()
+        Widgets.updateAll(c)
+    }
+
+    /** Fuel numbers from the Fuel log maths, for the planner and gauge widgets. Only redraws when something changed. */
+    fun savePlan(c: Context, litres: Double?, tank: Double, limit: Int, fillAt: Double?, kmToLimit: Double?, kmpl: Double?, rough: Boolean, costKm: Double?) {
+        val sig = listOf(litres?.let { Math.round(it * 10) }, Math.round(tank), limit, fillAt?.let { Math.round(it) }, kmToLimit?.let { Math.round(it) }, kmpl?.let { Math.round(it * 10) }, rough, costKm?.let { Math.round(it * 100) }).joinToString("|")
+        val p = prefs(c)
+        if (p.getString("plan_sig", null) == sig) return
+        p.edit().apply {
+            fun put(k: String, v: Double?) { if (v == null) remove(k) else putFloat(k, v.toFloat()) }
+            put("litres", litres); putFloat("tank", tank.toFloat()); putInt("limit", limit)
+            put("fillAt", fillAt); put("kmToLimit", kmToLimit); put("kmpl", kmpl); putBoolean("rough", rough); put("costKm", costKm)
+            putString("plan_sig", sig)
+        }.apply()
         Widgets.updateAll(c)
     }
 
