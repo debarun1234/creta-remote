@@ -35,6 +35,7 @@ object Analytics {
 
         val (used, source) = when {
             ledger.kmplRecent != null -> ledger.kmplRecent to "your last ${ledger.recentLegs} full-tank stretch${if (ledger.recentLegs == 1) "" else "es"}"
+            ledger.provisionalKmpl != null -> ledger.provisionalKmpl to "a rough estimate since your last fill-up. Fill to the brim again for the exact figure"
             carImplied != null -> carImplied to "the car's own estimate. Log fill-ups for real figures"
             else -> null to ""
         }

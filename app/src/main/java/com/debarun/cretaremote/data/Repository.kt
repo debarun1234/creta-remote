@@ -513,7 +513,7 @@ class Repository(private val ctx: Context) {
 
     private fun computeInsights(car: CarState?): FuelInsights {
         val s = _data.value.settings
-        val ledger = FuelLedger.stats(fills(), car?.odometerKm, s.tankLitres, s.fuelPricePerL)
+        val ledger = FuelLedger.stats(fills(), car?.odometerKm, s.tankLitres, s.fuelPricePerL, car?.fuelPct?.let { it / 100.0 * s.tankLitres })
         return Analytics.compute(store.snapshots(), car, s, store.days(""), ledger)
     }
 

@@ -90,7 +90,7 @@ fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
         Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Eyebrow("Real fuel economy")
-                CountUp(l.kmplRecent, decimals = 1, size = 54.sp, suffix = "km/L")
+                CountUp(l.kmplNow, decimals = 1, size = 54.sp, suffix = "km/L", color = if (l.usable) C.Text else C.Amber)
                 if (l.usable) {
                     Txt(
                         "Last ${l.recentLegs} full-tank stretch${if (l.recentLegs == 1) "" else "es"}, pooled by distance",
@@ -112,6 +112,13 @@ fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
                             }
                         }
                     }
+                } else if (l.provisionalKmpl != null) {
+                    Txt("Provisional. Rough, from the fuel gauge, until your next brim-full fill gives the exact figure.", size = 12.sp, color = C.Amber)
+                    Txt(
+                        "${Fmt.n(l.openKm ?: 0.0, 0)} km since your last brim-full fill, about ${Fmt.n(l.provisionalLitres ?: 0.0, 1)} L burnt (${Fmt.n(tank, 0)} L full, gauge now ${ins.litresLeft?.let { Fmt.n(it, 1) } ?: "?"} L).",
+                        size = 12.sp, color = C.Dim,
+                    )
+                    Txt("The gauge moves in coarse steps, so treat this as a range of a km/L either way. If the odometer in the app looks behind the dashboard, correct the fill-up's odometer first.", size = 11.sp, color = C.Faint)
                 } else {
                     Txt(l.hint ?: "", size = 13.sp, color = C.Dim)
                 }
@@ -129,10 +136,10 @@ fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
         Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Eyebrow("Running cost")
-                if (l.costPerKm != null || l.costPerKmNow != null) {
+                if (l.costPerKm != null || l.costPerKmNow != null || l.priceLast != null) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Stat("Paid per km", rs(l.costPerKm, 2), Modifier.weight(1f))
-                        Stat("Per km at today's price", rs(l.costPerKmNow, 2), Modifier.weight(1f))
+                        Stat(if (l.usable) "Per km at today's price" else "Per km (provisional)", rs(l.costPerKmNow, 2), Modifier.weight(1f))
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Stat("Per day", rs(l.costPerDay), Modifier.weight(1f))
@@ -277,10 +284,11 @@ private fun TripCostPanel(d: AppData) {
     Panel(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Eyebrow("Trip cost")
-            if (!l.usable) {
-                Txt("Available once the first full-tank stretch is measured.", size = 13.sp, color = C.Dim)
+            if (l.kmplNow == null) {
+                Txt("Available once you have a fill-up and have driven a bit since.", size = 13.sp, color = C.Dim)
             } else {
                 Field("Distance (km)", km, { km = cleanNum(it) }, keyboard = KeyboardType.Decimal, hint = "e.g. 120")
+                if (!l.usable) Txt("Provisional, from the rough economy above.", size = 11.sp, color = C.Amber)
                 if (q != null) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Stat("Fuel", "${Fmt.n(q.litres, 1)} L", Modifier.weight(1f))
