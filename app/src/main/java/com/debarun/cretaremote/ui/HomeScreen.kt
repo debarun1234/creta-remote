@@ -33,7 +33,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Navigation
@@ -109,9 +108,8 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
                 }
             }
             Spacer(Modifier.width(8.dp))
-            RoundIcon(Icons.Rounded.Refresh, spinning = d.refreshing) { vm.refresh(false) }
-            Spacer(Modifier.width(8.dp))
-            RoundIcon(Icons.Rounded.Bolt, tint = C.Amber) { vm.refresh(true) }
+            // one refresh button, and it syncs live: wakes the car and reads fresh data instead of the cloud's cached copy
+            RoundIcon(Icons.Rounded.Refresh, spinning = d.refreshing, tint = C.Amber) { vm.refresh(true) }
         }
 
         // ------------------------------------------------------------- status chips
@@ -156,7 +154,7 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
             onSync = { vm.refresh(true) },
         )
 
-        d.error?.let { ErrorCard(it) { vm.refresh(false) } }
+        d.error?.let { ErrorCard(it) { vm.refresh(true) } }
 
         // ------------------------------------------------------------- fuel + range
         Panel(Modifier.fillMaxWidth()) {
