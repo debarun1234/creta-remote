@@ -78,6 +78,10 @@ class BluelinkClient {
         val redirect = json?.optString("redirectUrl").orEmpty()
         val code = if (redirect.isNotEmpty()) Uri.parse(redirect).getQueryParameter("code") else null
         if (code.isNullOrEmpty()) {
+            // Bluelink answers {"step":5} when the account password has expired and must be changed in the official app (confirmed on a real account).
+            if (json != null && redirect.isEmpty() && json.has("step")) {
+                throw BluelinkException("Bluelink says your password has expired (step ${json.optInt("step")}). Change it in the official Bluelink app, then sign in here with the new password.", auth = true)
+            }
             // Say what the server actually answered, so "wrong password" is not blamed for an outage, a lockout or an API change.
             val said = json?.let { j ->
                 listOf("errMsg", "errorMessage", "error_description", "message", "resMsg", "error", "errorCode", "resCode", "retCode")
