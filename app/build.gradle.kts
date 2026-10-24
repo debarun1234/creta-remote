@@ -20,7 +20,7 @@ android {
         minSdk = 26
         targetSdk = 35
         // bump versionName only (scripts/release.sh does it); the code Android compares is derived from it so updates can never go backwards
-        val appVersion = "1.0.1"
+        val appVersion = "1.1.0"
         versionName = appVersion
         versionCode = appVersion.split(".").map { it.toInt() }.let { it[0] * 10_000 + it[1] * 100 + it[2] }
     }
