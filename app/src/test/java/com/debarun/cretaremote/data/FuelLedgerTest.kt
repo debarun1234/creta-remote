@@ -48,6 +48,8 @@ class FuelLedgerTest {
         assertEquals(0, s.recentExact)
         assertNotNull(s.errPct)
         assertTrue(s.legs.all { it.km >= FuelLedger.MIN_GAUGE_KM })
+        // the stretch in progress joins the recent figure only when it is long enough to mean something
+        assertTrue(s.inProgressKm == null || s.inProgressKm!! >= 1.0)
     }
 
     @Test

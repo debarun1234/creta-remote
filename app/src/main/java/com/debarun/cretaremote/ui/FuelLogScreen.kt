@@ -98,7 +98,7 @@ fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
                             l.recentExact == l.recentLegs -> " between full tanks"
                             l.recentExact == 0 -> ", measured with the fuel gauge between fill-ups"
                             else -> ", ${l.recentLegs - l.recentExact} measured with the fuel gauge"
-                        } + ", pooled by distance",
+                        } + (if (l.inProgressKm != null) ", including the one in progress" else "") + ", pooled by distance",
                         size = 12.sp, color = C.Dim,
                     )
                     if (l.recentExact < l.recentLegs && l.errPct != null) {
@@ -129,6 +129,14 @@ fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
                     Txt("The gauge moves in coarse steps, so treat this as a range of a km/L either way. If the odometer in the app looks behind the dashboard, correct the fill-up's odometer first.", size = 11.sp, color = C.Faint)
                 } else {
                     Txt(l.hint ?: "", size = 13.sp, color = C.Dim)
+                }
+                ins.kmplCar?.let { c ->
+                    val mine = l.kmplNow
+                    Txt(
+                        "The car's own estimate (range ÷ fuel left) says ${Fmt.n(c, 1)} km/L" +
+                            (if (mine != null && mine > 0) ", ${Fmt.n(kotlin.math.abs((c / mine - 1) * 100), 0)}% ${if (c >= mine) "above" else "below"} the measured figure" else "") + ".",
+                        size = 11.sp, color = C.Faint,
+                    )
                 }
                 val series = l.legs.filter { it.valid }.map { it.kmpl }
                 if (series.size >= 2) {
@@ -271,6 +279,7 @@ fun FuelLogScreen(d: AppData, vm: AppViewModel, onClose: () -> Unit) {
                 Txt("Partial top-ups count too. Between fill-ups the app reads the fuel gauge from your car: litres burnt = litres in the tank at the start + litres you poured in - litres in the tank at the end. That needs about 250 km of driving, and the accuracy is shown beside the figure.", size = 12.sp, color = C.Dim)
                 Txt("Cost uses the price you actually paid on each fill, not one fixed price. Stretches shorter than 40 km, or far off your usual, are left out of the averages and flagged.", size = 12.sp, color = C.Dim)
                 Txt("Gauge readings taken beside a fill-up, or with the tank nearly full or empty, are ignored because the gauge is unreliable there. A gauge rise with no fill-up logged is treated as a missed refuel, and the stretch starts again after it.", size = 12.sp, color = C.Dim)
+                Txt("The stretch you are driving now counts too: once at least one stretch is finished, the distance and fuel since the last reading are added to the recent figure, so it moves as you drive. Stretches over 15 km are used.", size = 12.sp, color = C.Dim)
             }
         }
     }

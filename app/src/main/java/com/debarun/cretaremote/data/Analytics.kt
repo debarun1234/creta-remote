@@ -35,10 +35,11 @@ object Analytics {
     private fun recentSource(l: LedgerStats): String {
         val n = l.recentLegs
         val plural = if (n == 1) "" else "es"
+        val tail = if (l.inProgressKm != null) ", including the one in progress" else ""
         return when {
-            l.recentExact == n -> "your last $n full-tank stretch$plural"
-            l.recentExact == 0 -> "your last $n stretch$plural, measured with the fuel gauge between fill-ups"
-            else -> "your last $n stretch$plural, ${n - l.recentExact} of them measured with the fuel gauge"
+            l.recentExact == n -> "your last $n full-tank stretch$plural$tail"
+            l.recentExact == 0 -> "your last $n stretch$plural, measured with the fuel gauge between fill-ups$tail"
+            else -> "your last $n stretch$plural, ${n - l.recentExact} of them measured with the fuel gauge$tail"
         }
     }
 

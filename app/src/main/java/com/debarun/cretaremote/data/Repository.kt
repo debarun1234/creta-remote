@@ -61,6 +61,9 @@ data class TripMonthUi(val yyyymm: String, val summary: TripSummary?, val days: 
 /** Tyre pressures the driver read off the dashboard or a pump and logged by hand (psi per wheel, FL FR RL RR). */
 data class TyreLog(val ts: Long, val psi: List<Double?>)
 
+/** The drive in progress: odometer since the engine started, and a rough economy from the gauge while it lasts. */
+data class LiveTrip(val km: Double, val litresUsed: Double?, val kmpl: Double?)
+
 /** What we know about the car's modem: it sleeps to save the battery and has to be woken before it will act. */
 enum class Link { UNKNOWN, WAKING, AWAKE, ASLEEP }
 
@@ -89,6 +92,7 @@ data class AppData(
     val linkAt: Long? = null,
     val fuel: FuelWatchUi = FuelWatchUi(),
     val tyreLog: TyreLog? = null,
+    val liveTrip: LiveTrip? = null,
 )
 
 fun DayRow.entries(): List<TripEntry> = try {
@@ -448,6 +452,7 @@ class Repository(private val ctx: Context) {
                 refreshing = false,
                 error = null,
                 insights = computeInsights(car),
+                liveTrip = liveTripOf(car),
                 places = store.places(),
             )
         }
@@ -526,7 +531,7 @@ class Repository(private val ctx: Context) {
             if (p.engine == true) null else GaugePoint(p.ts, odo, pct / 100.0 * s.tankLitres)
         }
         val ledger = FuelLedger.stats(fills(), car?.odometerKm, s.tankLitres, s.fuelPricePerL, car?.fuelPct?.let { it / 100.0 * s.tankLitres }, gauge)
-        val ins = Analytics.compute(snaps, car, s, store.days(""), ledger)
+        val ins = Analytics.compute(snaps, car, s, fixDays(store.days("")), ledger)
         // the fuel widgets show the same numbers as the Fuel log
         com.debarun.cretaremote.quick.WidgetState.savePlan(
             ctx, ins.litresLeft, s.tankLitres, s.fuelLimitL, ins.fillAtOdo, ins.kmToLimit, ledger.kmplNow, !ledger.usable, ins.costPerKm,
@@ -577,11 +582,72 @@ class Repository(private val ctx: Context) {
 
     // ------------------------------------------------------------------ trips
 
+    /**
+     * Bluelink's own trip figures run short (the dash said 37 km, the cloud 34 km). The odometer cannot: every metre driven moves it,
+     * and it stays put while the car is parked. So a day's distance is the odometer from just before its first trip to just after its
+     * last, from the readings the app records. When that is a plausible amount more than the cloud figure it replaces it, and the day's
+     * trips are scaled to add up to it.
+     */
+    private fun fixDays(days: List<DayRow>): List<DayRow> {
+        if (days.none { it.dist > 0 }) return days
+        val snaps = store.snapshots().filter { it.odo != null }
+        if (snaps.size < 2) return days
+        val stamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.US)
+        fun at(day: String, hhmmss: String): Long? = runCatching { stamp.parse(day + hhmmss.padStart(6, '0'))!!.time }.getOrNull()
+        return days.map { r ->
+            if (r.dist <= 0.0) return@map r
+            val es = r.entries()
+            val starts = es.mapNotNull { e -> at(r.day, e.startHhmmss) }
+            if (starts.isEmpty()) return@map r
+            val ends = es.mapNotNull { e ->
+                val s0 = at(r.day, e.startHhmmss) ?: return@mapNotNull null
+                val e0 = e.endHhmmss?.let { at(r.day, it) } ?: e.driveMin?.let { s0 + it * 60_000L } ?: return@mapNotNull null
+                if (e0 < s0) e0 + 86_400_000L else e0
+            }
+            val lastEnd = ends.maxOrNull() ?: return@map r
+            val first = starts.minOrNull() ?: return@map r
+            // parked readings are the safe ends: the odometer does not move while the engine is off
+            val a = (snaps.lastOrNull { it.ts <= first && it.engine != true } ?: snaps.lastOrNull { it.ts <= first })?.odo
+            val b = (snaps.firstOrNull { it.ts >= lastEnd && it.engine != true } ?: snaps.firstOrNull { it.ts >= lastEnd })?.odo
+            if (a == null || b == null) return@map r
+            val odoKm = b - a
+            if (odoKm <= r.dist + 0.05 || odoKm > r.dist * 1.35 + 5.0) r else scaleDay(r, odoKm)
+        }
+    }
+
+    private fun scaleDay(r: DayRow, odoKm: Double): DayRow {
+        val arr = runCatching { JSONArray(r.trips) }.getOrDefault(JSONArray())
+        val sum = (0 until arr.length()).sumOf { arr.getJSONObject(it).optDouble("d", 0.0) }
+        val f = odoKm / (if (sum > 0) sum else r.dist)
+        for (i in 0 until arr.length()) {
+            val t = arr.getJSONObject(i)
+            if (t.has("d")) { t.put("c", t.optDouble("d")); t.put("d", t.optDouble("d") * f) }
+        }
+        return r.copy(dist = odoKm, trips = arr.toString())
+    }
+
+    /** Distance since the engine started, from the last parked odometer reading, and a rough economy from the gauge. */
+    private fun liveTripOf(car: CarState): LiveTrip? {
+        if (car.engineOn != true) return null
+        val odoNow = car.odometerKm ?: return null
+        val snaps = store.snapshots(System.currentTimeMillis() - 12 * 3_600_000L).filter { it.odo != null }
+        if (snaps.isEmpty()) return null
+        var i = snaps.size
+        while (i > 0 && snaps[i - 1].engine == true) i--
+        val start = if (i > 0) snaps[i - 1] else snaps[0]
+        val km = odoNow - start.odo!!
+        if (km < 0.0) return null
+        val tank = _data.value.settings.tankLitres
+        val used = if (start.fuel != null && car.fuelPct != null) (start.fuel - car.fuelPct) / 100.0 * tank else null
+        val kmpl = if (used != null && used >= 1.0 && km >= 5.0) (km / used).takeIf { it in 3.0..40.0 } else null
+        return LiveTrip(km, used?.takeIf { it > 0.0 }, kmpl)
+    }
+
     fun currentMonth(): String = SimpleDateFormat("yyyyMM", Locale.US).format(Date())
 
     suspend fun loadTrips(yyyymm: String) {
         _data.update { it.copy(tripsLoading = true) }
-        val cached = withContext(Dispatchers.IO) { store.days(yyyymm) }
+        val cached = withContext(Dispatchers.IO) { fixDays(store.days(yyyymm)) }
         val cachedSummary = withContext(Dispatchers.IO) { store.kvGet("month_$yyyymm")?.let { runCatching { readSummary(JSONObject(it)) }.getOrNull() } }
         _data.update { it.copy(trips = TripMonthUi(yyyymm, cachedSummary, cached)) }
         try {
@@ -609,7 +675,7 @@ class Repository(private val ctx: Context) {
                     }
                 }.forEach { it.await() }
             }
-            val days = store.days(yyyymm)
+            val days = withContext(Dispatchers.IO) { fixDays(store.days(yyyymm)) }
             _data.update {
                 it.copy(
                     tripsLoading = false,
@@ -789,6 +855,7 @@ class Repository(private val ctx: Context) {
 
     @Volatile private var lastActivity = 0L
     @Volatile private var lastPing = 0L
+    @Volatile private var lastQuick = 0L
     private var keepJob: Job? = null
 
     private fun hasCreds() = vault.get("email") != null && vault.get("password") != null
@@ -806,8 +873,15 @@ class Repository(private val ctx: Context) {
         lastActivity = System.currentTimeMillis()
         if (keepJob?.isActive == true) return
         keepJob = scope.launch {
-            while (AppForeground.visible && System.currentTimeMillis() - lastActivity < KEEP_AWAKE_MS) {
-                if (!_data.value.cmd.busy && System.currentTimeMillis() - lastPing > PING_EVERY_MS) wakePing()
+            while (AppForeground.visible && (System.currentTimeMillis() - lastActivity < KEEP_AWAKE_MS || _data.value.car?.engineOn == true)) {
+                val nowMs = System.currentTimeMillis()
+                if (!_data.value.cmd.busy && nowMs - lastPing > PING_EVERY_MS) {
+                    wakePing()
+                } else if (_data.value.car?.engineOn == true && !_data.value.cmd.busy && nowMs - lastQuick > 45_000L) {
+                    // while driving, re-read the cloud copy every 45 s so the trip distance follows the car
+                    lastQuick = nowMs
+                    refresh(live = false, quiet = true)
+                }
                 delay(15.seconds)
             }
         }

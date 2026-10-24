@@ -146,6 +146,8 @@ fun TripsScreen(d: AppData, vm: AppViewModel) {
             NavArrow(false, enabled = month < thisMonth) { month = shiftMonth(month, 1) }
         }
 
+        d.liveTrip?.let { LiveTripCard(it) }
+
         MonthHero(t?.summary, days, d.tripsLoading, ins)
 
         if (days.any { it.dist > 0 }) {
@@ -167,6 +169,7 @@ fun TripsScreen(d: AppData, vm: AppViewModel) {
                 HeatCalendar(month, byDay, sel?.day) { selected = it }
                 CalendarLegend()
                 t?.note?.let { Txt(it, size = 12.sp, color = C.Dim) }
+                Txt("Distances come from the car's odometer, so they match the dash. Bluelink's own trip figures run a little short.", size = 11.sp, color = C.Faint)
             }
         }
 
@@ -174,11 +177,24 @@ fun TripsScreen(d: AppData, vm: AppViewModel) {
     }
 }
 
+/** The drive in progress, so a trip's distance and economy follow the car while it is driven. */
+@Composable
+fun LiveTripCard(t: com.debarun.cretaremote.data.LiveTrip) {
+    Panel(Modifier.fillMaxWidth(), tint = C.Red) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Eyebrow("Driving now")
+            CountUp(t.km, decimals = 1, size = 38.sp, suffix = "km")
+            Txt("Odometer since the engine started" + (t.litresUsed?.let { ", about ${Fmt.n(it, 1)} L used" } ?: ""), size = 12.sp, color = C.Dim)
+            t.kmpl?.let { Txt("${Fmt.n(it, 1)} km/L so far on this trip, rough (the gauge moves in steps)", size = 13.sp, color = C.Cyan) }
+        }
+    }
+}
+
 // ------------------------------------------------------------------------------------------ month
 
 @Composable
 private fun MonthHero(sum: TripSummary?, days: List<DayRow>, loading: Boolean, ins: com.debarun.cretaremote.data.FuelInsights) {
-    val dist = sum?.distKm?.takeIf { it > 0 } ?: days.sumOf { it.dist }.takeIf { it > 0 }
+    val dist = maxOf(sum?.distKm ?: 0.0, days.sumOf { it.dist }).takeIf { it > 0 }
     val drive = sum?.driveMin ?: days.sumOf { it.drive }
     val idle = sum?.idleMin ?: days.sumOf { it.idle }
     val moving = if (drive + idle > 0) drive.toFloat() / (drive + idle) else null

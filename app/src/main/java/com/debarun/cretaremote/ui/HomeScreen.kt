@@ -170,6 +170,7 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
         }
 
         // ------------------------------------------------------------- trip cost + next fill-up, without leaving Home
+        d.liveTrip?.let { LiveTripCard(it) }
         TripCostPanel(d, compact = true)
 
         // ------------------------------------------------------------- tyres

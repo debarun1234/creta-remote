@@ -58,6 +58,7 @@ data class LedgerStats(
     val recentLegs: Int = 0,
     val recentExact: Int = 0,                     // how many of those were brim-to-brim; the rest were measured with the gauge
     val errPct: Double? = null,                   // assumed error of the recent figure, in percent
+    val inProgressKm: Double? = null,             // distance of the unfinished stretch that the recent figure also counts
     val kmplBest: Double? = null,
     val kmplWorst: Double? = null,
     val index: Int? = null,                       // 100 = your own average, recent vs everything before it
@@ -84,7 +85,7 @@ data class LedgerStats(
 }
 
 object FuelLedger {
-    const val MIN_LEG_KM = 40.0
+    const val MIN_LEG_KM = 15.0
     const val MIN_KMPL = 4.0
     const val MAX_KMPL = 30.0
     const val RECENT_LEGS = 3
@@ -112,7 +113,7 @@ object FuelLedger {
     }
 
     /** Builds legs between consecutive full fill-ups. Fills are ordered by odometer then time, so a mistyped date cannot reorder the car's history. */
-    fun legs(fills: List<Fill>, fallbackPrice: Double, gauge: List<GaugePoint> = emptyList(), tankL: Double = 0.0, now: GaugePoint? = null): List<Leg> {
+    fun legs(fills: List<Fill>, fallbackPrice: Double, gauge: List<GaugePoint> = emptyList(), tankL: Double = 0.0, now: GaugePoint? = null, openOut: MutableList<Leg>? = null): List<Leg> {
         val sorted = fills.sortedWith(compareBy({ it.odoKm }, { it.ts }))
         val fullIdx = sorted.indices.filter { sorted[it].full }
         val out = mutableListOf<Leg>()
@@ -132,7 +133,11 @@ object FuelLedger {
             out += Leg(sorted[a].ts, sorted[b].ts, sorted[a].odoKm, sorted[b].odoKm, litres, cost, inside.size, note.isEmpty(), note)
         }
         // stretches that are not bracketed by two brim-full fills are measured from the fuel gauge
-        if (tankL > 0 && sorted.isNotEmpty()) out += gaugeLegs(sorted, gauge, now, tankL, fallbackPrice)
+        if (tankL > 0 && sorted.isNotEmpty()) {
+            val walk = gaugeWalk(sorted, gauge, now, tankL, fallbackPrice)
+            out += walk.first
+            walk.second?.let { openOut?.add(it) }
+        }
         out.sortWith(compareBy({ it.fromOdo }, { it.toOdo }))
         // drop statistical outliers (e.g. a forgotten fill makes one leg look far too good and its neighbour far too bad)
         val ok = out.filter { it.valid }
@@ -183,11 +188,26 @@ object FuelLedger {
      * Gauge-bridged stretches. Walk the anchors in odometer order; brim-to-brim is left to [legs]. Otherwise a stretch ends at the first
      * anchor at least [MIN_GAUGE_KM] further on. Ending on distance, not on litres, keeps a lucky gauge reading from choosing its own end.
      * A gauge rise that no logged fill-up explains means an unlogged refuel, so the walk starts again after it.
+     * Returns the finished stretches and, separately, the stretch still in progress (from the last start to the car's current reading).
      */
-    private fun gaugeLegs(sorted: List<Fill>, gauge: List<GaugePoint>, now: GaugePoint?, tankL: Double, fallbackPrice: Double): List<Leg> {
+    private fun gaugeWalk(sorted: List<Fill>, gauge: List<GaugePoint>, now: GaugePoint?, tankL: Double, fallbackPrice: Double): Pair<List<Leg>, Leg?> {
         val an = anchorsOf(sorted, gauge, now, tankL)
         val out = mutableListOf<Leg>()
         fun poured(a: Anchor, b: Anchor): List<Fill> = if (b.pos > a.pos) sorted.subList(a.pos + 1, b.pos + 1) else emptyList()
+        fun build(a: Anchor, b: Anchor): Leg {
+            val inside = poured(a, b)
+            val burnt = a.level + inside.sumOf { it.litres } - b.level
+            val priced = inside.filter { it.pricePerL > 0 }
+            val pricedL = priced.sumOf { it.litres }
+            val price = if (pricedL > 0) priced.sumOf { it.amount } / pricedL else fallbackPrice
+            val kmpl = if (burnt > 0) (b.odo - a.odo) / burnt else 0.0
+            val note = if (kmpl !in MIN_KMPL..MAX_KMPL) "Looks wrong. A fill-up may be missing or mistyped" else ""
+            val ea = if (a.brim) PUMP_ERR_L else GAUGE_ERR_L
+            val eb = if (b.brim) PUMP_ERR_L else GAUGE_ERR_L
+            val litres = max(0.0, burnt)
+            return Leg(a.ts, b.ts, a.odo, b.odo, litres, litres * price, inside.size, note.isEmpty(), note, exact = false, errL = sqrt(ea * ea + eb * eb))
+        }
+        var openFrom: Anchor? = null
         var i = 0
         while (i < an.size - 1) {
             val a = an[i]
@@ -204,31 +224,20 @@ object FuelLedger {
                 val unlogged = b.level - prev.level >= RISE_L && sorted.none { it.odoKm >= prev.odo - NEAR_FILL_KM && it.odoKm <= b.odo + NEAR_FILL_KM }
                 if (unlogged) { restart = j; break }
                 if (b.odo - a.odo >= MIN_GAUGE_KM) { end = j; break }
-                if (b.brim) { restart = j; break }   // too short to measure, but a brim-full fill is a better place to start from
+                if (b.brim) { restart = j; break }   // too short to measure, but a brim-full fill-up is a better place to start from
                 prev = b
                 j++
             }
             when {
-                end >= 0 -> {
-                    val b = an[end]
-                    val inside = poured(a, b)
-                    val burnt = a.level + inside.sumOf { it.litres } - b.level
-                    val priced = inside.filter { it.pricePerL > 0 }
-                    val pricedL = priced.sumOf { it.litres }
-                    val price = if (pricedL > 0) priced.sumOf { it.amount } / pricedL else fallbackPrice
-                    val kmpl = if (burnt > 0) (b.odo - a.odo) / burnt else 0.0
-                    val note = if (kmpl !in MIN_KMPL..MAX_KMPL) "Looks wrong. A fill-up may be missing or mistyped" else ""
-                    val ea = if (a.brim) PUMP_ERR_L else GAUGE_ERR_L
-                    val eb = if (b.brim) PUMP_ERR_L else GAUGE_ERR_L
-                    val litres = max(0.0, burnt)
-                    out += Leg(a.ts, b.ts, a.odo, b.odo, litres, litres * price, inside.size, note.isEmpty(), note, exact = false, errL = sqrt(ea * ea + eb * eb))
-                    i = end
-                }
+                end >= 0 -> { out += build(a, an[end]); i = end }
                 restart >= 0 -> i = restart
-                else -> break
+                else -> { openFrom = a; break }
             }
         }
-        return out
+        val from = openFrom
+        val last = an.lastOrNull()
+        val open = if (from != null && last != null && now != null && last.ts == now.ts && last !== from && !last.brim) build(from, last) else null
+        return Pair(out, open)
     }
 
     fun stats(fills: List<Fill>, currentOdo: Double?, tankL: Double, settingsPrice: Double, gaugeLitres: Double? = null, gauge: List<GaugePoint> = emptyList(), nowTs: Long = System.currentTimeMillis()): LedgerStats {
@@ -245,15 +254,22 @@ object FuelLedger {
         val spend = sorted.sumOf { it.litres * (if (it.pricePerL > 0) it.pricePerL else fallback) }
 
         val nowPoint = if (currentOdo != null && gaugeLitres != null) GaugePoint(nowTs, currentOdo, gaugeLitres) else null
-        val legs = legs(sorted, fallback, gauge, tankL, nowPoint)
+        val openHolder = mutableListOf<Leg>()
+        val legs = legs(sorted, fallback, gauge, tankL, nowPoint, openHolder)
         val ok = legs.filter { it.valid }
 
         fun pooled(l: List<Leg>): Double? = l.sumOf { it.litres }.takeIf { it > 0 }?.let { l.sumOf { x -> x.km } / it }
 
         val all = pooled(ok)
         val recentList = ok.takeLast(RECENT_LEGS)
-        val recent = pooled(recentList)
-        val errPct = recentList.sumOf { it.litres }.takeIf { it > 0 }?.let { l -> sqrt(recentList.sumOf { it.errL * it.errL }) / l * 100.0 }
+        // every metre counts: the stretch still in progress joins the recent figure once there is a finished stretch to compare it with
+        val finished = pooled(recentList)
+        val inProgress = openHolder.firstOrNull()?.takeIf { o ->
+            finished != null && o.litres >= 3.0 && o.kmpl in MIN_KMPL..MAX_KMPL && o.kmpl in finished * 0.6..finished * 1.6
+        }
+        val pool = if (inProgress != null) recentList + inProgress else recentList
+        val recent = pooled(pool)
+        val errPct = pool.sumOf { it.litres }.takeIf { it > 0 }?.let { l -> sqrt(pool.sumOf { it.errL * it.errL }) / l * 100.0 }
         val spread = ok.filter { it.exact }.ifEmpty { ok }
         val index = if (ok.size >= 3) {
             val head = pooled(ok.dropLast(2))
@@ -303,7 +319,7 @@ object FuelLedger {
 
         return LedgerStats(
             fills = sorted, legs = legs,
-            kmplAll = all, kmplRecent = recent, recentLegs = recentList.size, recentExact = recentList.count { it.exact }, errPct = errPct,
+            kmplAll = all, kmplRecent = recent, recentLegs = pool.size, recentExact = pool.count { it.exact }, errPct = errPct, inProgressKm = inProgress?.km,
             kmplBest = spread.maxOfOrNull { it.kmpl }, kmplWorst = spread.minOfOrNull { it.kmpl },
             index = index,
             litresTotal = sorted.sumOf { it.litres }, spendTotal = spend,

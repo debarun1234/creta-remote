@@ -268,6 +268,7 @@ class BluelinkClient {
      * is remembered in [lastRoute].
      */
     private fun tryRoutes(routes: List<Pair<String, () -> Request>>, failure: String): String {
+        val said = mutableListOf<String>()
         var last: BluelinkException? = null
         for ((label, build) in routes) {
             try {
@@ -279,8 +280,11 @@ class BluelinkClient {
             } catch (e: BluelinkException) {
                 if (e.auth || e.deviceId) throw e
                 last = e
+                e.message?.let { m -> if (m !in said) said += m }
             }
         }
+        // say what Bluelink answered on every route, so a refusal can be told apart from a wrong route
+        if (said.size > 1) throw BluelinkException("$failure Bluelink said: ${said.joinToString("; ")}", last?.code)
         throw last ?: BluelinkException(failure)
     }
 
@@ -321,13 +325,20 @@ class BluelinkClient {
     suspend fun boot(s: Session, v: Vehicle): String = withContext(Dispatchers.IO) {
         val on = JSONObject().put("command", "open").toString()
         val open = JSONObject().put("action", "open").put("deviceId", s.deviceId).toString()
+        val unlock = JSONObject().put("action", "unlock").put("deviceId", s.deviceId).toString()
         val u1 = "${SPA}vehicles/${v.id}/control/trunk"
         val u2 = "${SPA2}vehicles/${v.id}/control/trunk"
         val c2 = "${SPA2}vehicles/${v.id}/ccs2/control/trunk"
         tryRoutes(
             if (v.ccs2 != 0) listOf("ccs2 trunk" to post(s, v, c2, on, true))
-            else listOf("trunk" to post(s, v, u1, open, false), "trunk (PIN)" to post(s, v, u1, open, true), "trunk v2" to post(s, v, u2, open, true)),
-            "This car did not accept a remote boot release.",
+            else listOf(
+                "trunk" to post(s, v, u1, open, false),
+                "trunk (PIN)" to post(s, v, u1, open, true),
+                "trunk v2" to post(s, v, u2, open, true),
+                "trunk unlock" to post(s, v, u1, unlock, true),
+                "trunk unlock v2" to post(s, v, u2, unlock, true),
+            ),
+            "Bluelink did not accept a remote boot release; this car's service may not offer one.",
         )
     }
 
