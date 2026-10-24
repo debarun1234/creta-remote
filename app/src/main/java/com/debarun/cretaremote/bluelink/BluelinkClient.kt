@@ -210,6 +210,21 @@ class BluelinkClient {
         }
     }
 
+    /** Diagnostic: what Bluelink answers on a path under this vehicle, as plain text with the VIN removed. */
+    suspend fun probe(s: Session, v: Vehicle, path: String, body: JSONObject?): String = withContext(Dispatchers.IO) {
+        try {
+            val b = Request.Builder().url("${SPA}vehicles/${v.id}/$path").withAuth(s, v.ccs2)
+            val req = if (body == null) b.get().build() else b.post(body.toString().toByteArray().toRequestBody(JSON)).build()
+            http.newCall(req).execute().use { r ->
+                var t = r.body?.string().orEmpty()
+                if (v.vin.isNotBlank()) t = t.replace(v.vin, "<VIN>")
+                "HTTP ${r.code}: ${t.take(2500)}"
+            }
+        } catch (e: Exception) {
+            "error: ${e.message}"
+        }
+    }
+
     suspend fun tripDay(s: Session, v: Vehicle, yyyymmdd: String): JSONObject? = withContext(Dispatchers.IO) {
         val p = JSONObject().put("tripPeriodType", 1).put("setTripDay", yyyymmdd)
         try {

@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -458,6 +459,27 @@ private fun DayCard(sel: DayRow, ins: com.debarun.cretaremote.data.FuelInsights,
                 },
                 size = 11.sp, color = C.Cyan,
             )
+
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+            var probe by remember(sel.day) { mutableStateOf<String?>(null) }
+            var probing by remember(sel.day) { mutableStateOf(false) }
+            Txt(
+                if (probing) "Asking Bluelink…" else "Look for the driven route in Bluelink (diagnostic)",
+                Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                    if (!probing) {
+                        probing = true
+                        scope.launch {
+                            val tid = entries.firstNotNullOfOrNull { e -> runCatching { org.json.JSONObject(e.raw ?: "").optString("serviceTID") }.getOrNull()?.takeIf { it.isNotBlank() } } ?: ""
+                            val text = vm.probeRoute(sel.day, tid)
+                            clip.setText(androidx.compose.ui.text.AnnotatedString(text))
+                            probe = "Copied what Bluelink answered (${text.length} characters). Paste it in the chat."
+                            probing = false
+                        }
+                    }
+                },
+                size = 11.sp, color = C.Cyan,
+            )
+            probe?.let { Txt(it, size = 11.sp, color = C.Faint) }
         }
     }
 }

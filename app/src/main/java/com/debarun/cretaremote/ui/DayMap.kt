@@ -29,7 +29,7 @@ import com.debarun.cretaremote.data.DayRoute
  */
 @Composable
 fun DayMap(day: String, trips: Int, vm: AppViewModel, dayKm: Double = 0.0) {
-    var roads by remember(day) { mutableStateOf(false) }
+    val roads = false
     val route by produceState<DayRoute?>(null, day, roads) {
         value = vm.dayRoute(day, roads)
     }
@@ -78,18 +78,12 @@ fun DayMap(day: String, trips: Int, vm: AppViewModel, dayKm: Double = 0.0) {
                 Txt("${r.tripsCovered} of ${r.trips} trip${if (r.trips == 1) "" else "s"} · start and end points from Bluelink", size = 12.sp, color = C.Dim)
                 Txt(
                     "Bluelink sends only where each trip began and ended, not the streets driven. " +
-                        (if (roads) "The lines are the shortest road between those points, an estimate: the car may have gone another way."
-                        else "The dashed lines just join those points, they are not the path.") +
+                        "The dashed lines only join those points, they are not the path. Settings → Record the route captures the real path from this phone on later drives." +
                         " Together they span about ${Fmt.n(lineKm, 1)} km" +
                         (if (dayKm > lineKm * 1.2 + 1.0) ", while the odometer counted ${Fmt.n(dayKm, 1)} km, so the car went further than these lines." else "."),
                     size = 11.sp, color = C.Faint,
                 )
                 if (roads && r.legs.any { it.straight }) Txt("Some legs stay dashed because no road route could be fetched (needs internet).", size = 11.sp, color = C.Faint)
-                Txt(
-                    if (roads) "Hide estimated road routes" else "Show estimated road routes",
-                    Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { roads = !roads },
-                    size = 11.sp, color = C.Cyan,
-                )
             }
             r.stops.size < 2 -> Txt(
                 "Bluelink's trip data for this day has no positions the app could read, no path was recorded from this phone, and no parking spots were seen around the trips. Use \"Copy what Bluelink sent\" under the trip list and send it over, or turn on Settings → Record the route.",
@@ -117,11 +111,6 @@ fun DayMap(day: String, trips: Int, vm: AppViewModel, dayKm: Double = 0.0) {
                     )
                 }
                 if (r.legs.any { it.straight } && roads) Txt("Dashed lines are straight because no road route could be fetched (needs internet).", size = 11.sp, color = C.Faint)
-                Txt(
-                    if (roads) "Hide estimated road routes" else "Show estimated road routes",
-                    Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { roads = !roads },
-                    size = 11.sp, color = C.Cyan,
-                )
                 Txt("Stop 1 is where the car started. The lines only join the stops; they are not the streets driven. Turn on Settings → Record the route to capture the real path.", size = 11.sp, color = C.Faint)
             }
         }

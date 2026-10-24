@@ -901,6 +901,27 @@ class Repository(private val ctx: Context) {
         DayRoute(stops, legs, row?.count ?: 0)
     }
 
+    /** Diagnostic for the Trips screen: asks Bluelink for a day's whole trip answer and a few guessed route paths, and reports what came back. */
+    suspend fun probeRoute(day: String, tid: String): String = withContext(Dispatchers.IO) {
+        val out = StringBuilder()
+        val dayBody = { JSONObject().put("tripPeriodType", 1).put("setTripDay", day) }
+        val tries = listOf<Pair<String, JSONObject?>>(
+            "tripinfo" to dayBody(),
+            "tripinfo" to dayBody().put("serviceTID", tid),
+            "tripinfo/detail" to dayBody().put("serviceTID", tid),
+            "tripinfo/route" to dayBody().put("serviceTID", tid),
+            "tripdetail?serviceTID=$tid" to null,
+            "trip/route?serviceTID=$tid" to null,
+            "driving/route?serviceTID=$tid" to null,
+            "drvinfo?serviceTID=$tid" to null,
+        )
+        for ((path, body) in tries) {
+            val r = try { api { s -> client.probe(s, ensureVehicle(s), path, body) } } catch (e: Exception) { "error: ${e.message}" }
+            out.append(if (body == null) "GET " else "POST ").append(path).append(" -> ").append(r).append("\n\n")
+        }
+        out.toString()
+    }
+
     /** A direct line between two real points: no streets are implied. */
     private fun straightLeg(pa: Pair<Double, Double>, pb: Pair<Double, Double>) =
         RouteLeg(listOf(pa, pb), true, Geo.distanceM(pa.first, pa.second, pb.first, pb.second) / 1000.0)
