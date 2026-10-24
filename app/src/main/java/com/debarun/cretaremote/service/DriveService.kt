@@ -58,7 +58,7 @@ class DriveService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (job?.isActive == true) return START_NOT_STICKY
+        if (job?.isActive == true) return START_STICKY
         DriveState.active = true
         // the CPU must stay awake between polls or a screen-off phone would sleep through its own timers
         wake = (getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "cretaremote:drive")
@@ -72,7 +72,8 @@ class DriveService : Service() {
                 stopSelf()
             }
         }
-        return START_NOT_STICKY
+        // if the system kills the process mid-drive, ask for the session back; it ends itself once the engine has been off a while
+        return START_STICKY
     }
 
     /** Android 15 caps data-sync services at about six hours; stop cleanly instead of being killed. */

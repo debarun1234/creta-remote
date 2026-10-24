@@ -146,6 +146,10 @@ class Repository(private val ctx: Context) {
             val car = raw?.let { runCatching { parseRaw(JSONObject(it)) }.getOrNull() }
             val fetched = raw?.let { runCatching { JSONObject(it).optLong("fetched") }.getOrNull() }
             val insights = computeInsights(car)
+            // what we last learnt about the car's modem survives the app being closed, so reopening does not start from "unknown" and wake it again
+            val lk = store.kvGet("link")?.split("|")
+            val lkState = lk?.getOrNull(0)?.let { n -> runCatching { Link.valueOf(n) }.getOrNull() } ?: Link.UNKNOWN
+            val lkAt = lk?.getOrNull(1)?.toLongOrNull()
             _data.update {
                 it.copy(
                     booting = false,
@@ -155,6 +159,8 @@ class Repository(private val ctx: Context) {
                     vehicle = vehicle,
                     car = car,
                     fetchedAt = fetched,
+                    link = lkState,
+                    linkAt = lkAt,
                     insights = insights,
                     places = store.places(),
                     services = loadServices(),
@@ -863,7 +869,16 @@ class Repository(private val ctx: Context) {
     // ------------------------------------------------------------------ wake-up
 
     @Volatile private var lastActivity = 0L
-    @Volatile private var lastPing = 0L
+    @Volatile private var lastPing = store.kvGet("link")?.split("|")?.getOrNull(2)?.toLongOrNull() ?: 0L
+
+    /** The last time the car is known to have answered (a live request, a command, or a drive read). Persisted, so closing the app does not forget it. */
+    private fun lastContact(): Long = maxOf(lastPing, if (_data.value.link == Link.AWAKE) _data.value.linkAt ?: 0L else 0L)
+
+    private fun persistLink() {
+        val d = _data.value
+        if (d.link != Link.AWAKE && d.link != Link.ASLEEP) return
+        store.kvPut("link", "${d.link.name}|${d.linkAt ?: 0L}|$lastPing")
+    }
     @Volatile private var lastQuick = 0L
     private var keepJob: Job? = null
 
@@ -886,7 +901,7 @@ class Repository(private val ctx: Context) {
                 val nowMs = System.currentTimeMillis()
                 val engine = _data.value.car?.engineOn == true
                 val idle = !_data.value.cmd.busy
-                if (idle && _data.value.settings.keepAwake && !engine && nowMs - lastActivity < KEEP_AWAKE_MS && nowMs - lastPing > PING_EVERY_MS) {
+                if (idle && _data.value.settings.keepAwake && !engine && nowMs - lastActivity < KEEP_AWAKE_MS && nowMs - lastContact() > PING_EVERY_MS) {
                     wakePing()
                 } else if (idle && !DriveState.active && nowMs - lastQuick > (if (engine) 30_000L else 60_000L)) {
                     lastQuick = nowMs
@@ -917,6 +932,7 @@ class Repository(private val ctx: Context) {
                 else -> it.copy(link = before)
             }
         }
+        persistLink()
         return ok
     }
 
@@ -928,7 +944,7 @@ class Repository(private val ctx: Context) {
     /** For callers outside the app (Quick Settings tiles): wake the car if it has not been pinged lately. */
     fun wakeIfIdle() {
         if (!_data.value.settings.keepAwake || !hasCreds()) return
-        if (System.currentTimeMillis() - lastPing < PING_EVERY_MS) return
+        if (System.currentTimeMillis() - lastContact() < PING_EVERY_MS) return
         scope.launch { wakePing() }
     }
 
@@ -952,6 +968,7 @@ class Repository(private val ctx: Context) {
             if (ok == true) {
                 failures = 0
                 _data.update { it.copy(link = Link.AWAKE, linkAt = System.currentTimeMillis()) }
+                persistLink()
                 val car = _data.value.car
                 if (car?.engineOn == true) {
                     // a cached copy that has not changed since the engine was seen off can be stale; only a live answer or a newer report counts
@@ -1087,6 +1104,7 @@ class Repository(private val ctx: Context) {
                     if (cmd == Cmd.STOP) com.debarun.cretaremote.quick.WidgetState.saveEngine(ctx, false)
                     setCmd(cmd, Phase.OK, doneText(cmd))
                     _data.update { it.copy(link = Link.AWAKE, linkAt = System.currentTimeMillis()) }
+                    persistLink()
                     lastActivity = System.currentTimeMillis()
                     log(Outcome.SUCCESS, doneText(cmd))
                     scope.launch { delay(4.seconds); refresh(live = false) }
