@@ -861,7 +861,7 @@ class Repository(private val ctx: Context) {
      * The places the car stood during a day (where it started, then each place it parked) joined by road routes. Bluelink does not send a
      * GPS track, only where the car parks, so each leg is the road route between two consecutive stops; the exact streets driven may differ.
      */
-    suspend fun dayRoute(day: String): DayRoute = withContext(Dispatchers.IO) {
+    suspend fun dayRoute(day: String, roads: Boolean = false): DayRoute = withContext(Dispatchers.IO) {
         val row = store.days(day.take(6)).firstOrNull { it.day == day }
         val dayStart = runCatching { SimpleDateFormat("yyyyMMddHHmmss", Locale.US).parse(day + "000000")!!.time }.getOrNull()
             ?: return@withContext DayRoute(emptyList(), emptyList(), row?.count ?: 0)
@@ -893,13 +893,17 @@ class Repository(private val ctx: Context) {
                 addStop(g.end ?: g.path.lastOrNull())
                 if (g.path.size >= 2) {
                     RouteLeg(g.path, false, g.path.zipWithNext().sumOf { (x, y) -> Geo.distanceM(x.first, x.second, y.first, y.second) } / 1000.0)
-                } else routeLegPts(g.start!!, g.end!!)
+                } else if (roads) routeLegPts(g.start!!, g.end!!) else straightLeg(g.start!!, g.end!!)
             }
             return@withContext DayRoute(gStops, gLegs, row?.count ?: 0, tripsCovered = geos.size, source = "bluelink")
         }
-        val legs = stops.zipWithNext().map { (a, b) -> routeLeg(a, b) }
+        val legs = stops.zipWithNext().map { (a, b) -> if (roads) routeLeg(a, b) else straightLeg(a.lat to a.lon, b.lat to b.lon) }
         DayRoute(stops, legs, row?.count ?: 0)
     }
+
+    /** A direct line between two real points: no streets are implied. */
+    private fun straightLeg(pa: Pair<Double, Double>, pb: Pair<Double, Double>) =
+        RouteLeg(listOf(pa, pb), true, Geo.distanceM(pa.first, pa.second, pb.first, pb.second) / 1000.0)
 
     private suspend fun routeLeg(a: Place, b: Place): RouteLeg = routeLegPts(a.lat to a.lon, b.lat to b.lon)
 

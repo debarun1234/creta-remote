@@ -418,7 +418,7 @@ private fun DayCard(sel: DayRow, ins: com.debarun.cretaremote.data.FuelInsights,
                 DayTimeline(sel.day, entries)
             }
 
-            DayMap(sel.day, sel.count, vm)
+            DayMap(sel.day, sel.count, vm, sel.dist)
 
             StatGrid(
                 listOf(
