@@ -56,8 +56,28 @@ fun DayMap(day: String, trips: Int, vm: AppViewModel) {
                     size = 11.sp, color = C.Faint,
                 )
             }
+            r.source == "bluelink" -> {
+                Box(Modifier.fillMaxWidth().height(320.dp).clip(RoundedCornerShape(16.dp))) {
+                    CarMap(
+                        points = r.stops.map { it.lat to it.lon },
+                        label = null,
+                        sub = null,
+                        modifier = Modifier.fillMaxSize(),
+                        showTrail = false,
+                        carHere = false,
+                        routes = r.legs.map { MapLeg(it.pts, it.straight) },
+                        numbered = true,
+                    )
+                }
+                Txt("${r.tripsCovered} of ${r.trips} trip${if (r.trips == 1) "" else "s"} · about ${Fmt.n(r.legs.sumOf { it.km }, 1)} km by road", size = 12.sp, color = C.Dim)
+                Txt(
+                    "Each trip's start and end come from Bluelink's own trip data, joined by the road route between them, like the Bluelink app's map. The route drawn may differ from the exact streets driven.",
+                    size = 11.sp, color = C.Faint,
+                )
+                if (r.legs.any { it.straight }) Txt("Dashed lines are straight because no road route could be fetched (needs internet).", size = 11.sp, color = C.Faint)
+            }
             r.stops.size < 2 -> Txt(
-                "No path was recorded for this day, and no parking spots were seen around its trips, so there is nothing to draw. Turn on Settings → Record the route to capture the path from this phone while you drive.",
+                "Bluelink's trip data for this day has no positions the app could read, no path was recorded from this phone, and no parking spots were seen around the trips. Use \"Copy what Bluelink sent\" under the trip list and send it over, or turn on Settings → Record the route.",
                 size = 12.sp, color = C.Dim,
             )
             else -> {

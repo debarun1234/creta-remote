@@ -76,6 +76,8 @@ data class DayRoute(
     val trackKm: Double = 0.0,
     /** How many of the day's trips have a recorded path. */
     val tripsCovered: Int = 0,
+    /** Where the picture comes from: "phone" (recorded GPS), "bluelink" (trip start/end/route Bluelink sent) or "stops" (parking spots). */
+    val source: String = "stops",
 )
 
 /** The drive in progress, odometer since the engine started, and a rough economy from the gauge while it lasts. */
@@ -874,20 +876,39 @@ class Repository(private val ctx: Context) {
         val pieces = if (raw.size >= 2 && (covered > 0 || windows.isEmpty())) pathPieces(raw) else emptyList()
         if (pieces.isNotEmpty()) {
             val km = pieces.sumOf { pc -> pc.zipWithNext().sumOf { (x, y) -> Geo.distanceM(x.first, x.second, y.first, y.second) } } / 1000.0
-            return@withContext DayRoute(stops, emptyList(), row?.count ?: 0, pieces, km, covered)
+            return@withContext DayRoute(stops, emptyList(), row?.count ?: 0, pieces, km, covered, "phone")
+        }
+        // trip positions Bluelink itself sent, if its trip data carries any
+        val geos = row?.entries().orEmpty().sortedBy { it.startHhmmss.padStart(6, '0') }.mapNotNull { TripGeoParser.parse(it.raw) }
+            .filter { it.path.size >= 2 || (it.start != null && it.end != null) }
+        if (geos.isNotEmpty()) {
+            val gStops = mutableListOf<Place>()
+            fun addStop(p: Pair<Double, Double>?) {
+                if (p == null) return
+                val last = gStops.lastOrNull()
+                if (last == null || Geo.distanceM(last.lat, last.lon, p.first, p.second) > 120.0) gStops += Place(0L, p.first, p.second, null)
+            }
+            val gLegs = geos.map { g ->
+                addStop(g.start ?: g.path.firstOrNull())
+                addStop(g.end ?: g.path.lastOrNull())
+                if (g.path.size >= 2) {
+                    RouteLeg(g.path, false, g.path.zipWithNext().sumOf { (x, y) -> Geo.distanceM(x.first, x.second, y.first, y.second) } / 1000.0)
+                } else routeLegPts(g.start!!, g.end!!)
+            }
+            return@withContext DayRoute(gStops, gLegs, row?.count ?: 0, tripsCovered = geos.size, source = "bluelink")
         }
         val legs = stops.zipWithNext().map { (a, b) -> routeLeg(a, b) }
         DayRoute(stops, legs, row?.count ?: 0)
     }
 
-    private suspend fun routeLeg(a: Place, b: Place): RouteLeg {
-        val pa = a.lat to a.lon
-        val pb = b.lat to b.lon
-        val crowM = Geo.distanceM(a.lat, a.lon, b.lat, b.lon)
+    private suspend fun routeLeg(a: Place, b: Place): RouteLeg = routeLegPts(a.lat to a.lon, b.lat to b.lon)
+
+    private suspend fun routeLegPts(pa: Pair<Double, Double>, pb: Pair<Double, Double>): RouteLeg {
+        val crowM = Geo.distanceM(pa.first, pa.second, pb.first, pb.second)
         fun lengthKm(p: List<Pair<Double, Double>>) = p.zipWithNext().sumOf { (x, y) -> Geo.distanceM(x.first, x.second, y.first, y.second) } / 1000.0
         if (crowM < 120.0) return RouteLeg(listOf(pa, pb), false, crowM / 1000.0)
         val key = Router.key(pa, pb)
-        val enc = store.kvGet(key) ?: Router.fetch(pa, pb)?.also { store.kvPut(key, it) }
+        val enc = store.kvGet(key) ?: Router.fetch(pa, pb, _data.value.settings.mapplsKey)?.also { store.kvPut(key, it) }
         val pts = enc?.let { runCatching { Router.decode(it) }.getOrNull() }?.takeIf { it.size >= 2 }
         return if (pts != null) RouteLeg(pts, false, lengthKm(pts)) else RouteLeg(listOf(pa, pb), true, crowM / 1000.0)
     }

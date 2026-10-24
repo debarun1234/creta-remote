@@ -107,3 +107,10 @@ The app checks `github.com/debarun1234/creta-remote` for a newer release each ti
 - **Places** shows only where the car parked, month by month (arrows next to the title), with no lines between spots. The car is marked only in the current month.
 - **Trips → a day** shows a map of the places the car stood that day, numbered in order, joined by road routes from OpenStreetMap routing servers (cached after the first lookup). Bluelink does not send a GPS track while driving, only where the car parks, so each leg is the road route between two consecutive stops; the exact streets driven can differ. A stop only exists if the app saw the car parked there, so the drive session fetches the parked location shortly after every trip ends.
 - **Recorded route (optional).** Bluelink never sends a path, so the only way to see the streets actually driven is the phone's own GPS. Settings → Stay connected while driving → "Record the route" saves this phone's GPS fixes (about every 5 s / 10 m) while a drive session runs; they stay in the app's database on the phone for four months and are never sent anywhere ("Delete recorded routes" clears them). Trips → a day then draws that path and its length. For it to also record when the session starts by itself with the app closed, Android needs location set to "Allow all the time"; without that it records only when the session starts while the app is open. Days without a recording fall back to the road routes between parking spots.
+
+### Trip positions and Mappls
+
+The Trips day map first uses a phone-recorded path, then any start/end positions or route line found in the trip data Bluelink returns
+(`TripGeoParser` looks for them under any field name), then falls back to parking spots. Each start→end pair is routed through Mappls
+(MapmyIndia) when a REST key is set in Settings → Maps, otherwise through OpenStreetMap routing. Map tiles are still OpenStreetMap.
+"Copy what Bluelink sent for this day" under a day's trip list copies the stored raw trip JSON.

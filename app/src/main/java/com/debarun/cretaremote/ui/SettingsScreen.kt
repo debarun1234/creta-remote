@@ -72,6 +72,7 @@ private fun SettingsList(d: AppData, vm: AppViewModel, onAbout: () -> Unit) {
     var tank by remember(s.tankLitres) { mutableStateOf(Fmt.n(s.tankLitres, 0)) }
     var price by remember(s.fuelPricePerL) { mutableStateOf(if (s.fuelPricePerL > 0) Fmt.n(s.fuelPricePerL, 2) else "") }
     var pin by remember { mutableStateOf("") }
+    var mkey by remember(s.mapplsKey) { mutableStateOf(s.mapplsKey) }
     var pwDays by remember(s.passwordDays) { mutableStateOf(s.passwordDays.toString()) }
 
     Column(
@@ -110,6 +111,17 @@ private fun SettingsList(d: AppData, vm: AppViewModel, onAbout: () -> Unit) {
                     val v = it.toDoubleOrNull()
                     if (it.isEmpty()) vm.saveSettings(s.copy(fuelPricePerL = 0.0)) else if (v != null && v in 0.0..500.0) vm.saveSettings(s.copy(fuelPricePerL = v))
                 }, keyboard = KeyboardType.Decimal, hint = "optional, enables running cost")
+            }
+        }
+
+        Panel(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Eyebrow("Maps")
+                Field("Mappls (MapmyIndia) REST key", mkey, {
+                    mkey = it
+                    vm.saveSettings(s.copy(mapplsKey = it.trim()))
+                }, hint = "optional")
+                Txt("Bluelink's own app draws its trips with Mappls. With a key from developer.mappls.com, road routes between a trip's start and end are asked from Mappls first, then from OpenStreetMap if Mappls does not answer. The map tiles stay OpenStreetMap.", size = 12.sp, color = C.Dim)
             }
         }
 

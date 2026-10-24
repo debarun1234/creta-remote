@@ -447,6 +447,17 @@ private fun DayCard(sel: DayRow, ins: com.debarun.cretaremote.data.FuelInsights,
             } else {
                 Txt("Bluelink gave a daily total but no per-trip breakdown for this day.", size = 12.sp, color = C.Dim)
             }
+
+            val clip = androidx.compose.ui.platform.LocalClipboardManager.current
+            var copied by remember(sel.day) { mutableStateOf(false) }
+            Txt(
+                if (copied) "Copied" else "Copy what Bluelink sent for this day (may include locations)",
+                Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                    clip.setText(androidx.compose.ui.text.AnnotatedString(entries.joinToString("\n") { it.raw ?: "" }.ifBlank { "(nothing stored for this day yet)" }))
+                    copied = true
+                },
+                size = 11.sp, color = C.Cyan,
+            )
         }
     }
 }

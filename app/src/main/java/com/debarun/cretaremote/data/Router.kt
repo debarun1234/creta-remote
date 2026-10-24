@@ -17,7 +17,8 @@ object Router {
     private val hosts = listOf("https://routing.openstreetmap.de/routed-car", "https://router.project-osrm.org")
 
     /** Google's encoded-polyline format (5 decimals), which both servers return. */
-    fun decode(s: String): List<Pair<Double, Double>> {
+    fun decode(s: String, precision: Int = 5): List<Pair<Double, Double>> {
+        val scale = Math.pow(10.0, precision.toDouble())
         val out = ArrayList<Pair<Double, Double>>()
         var i = 0
         var lat = 0
@@ -35,9 +36,29 @@ object Router {
                 val d = if ((result and 1) != 0) (result shr 1).inv() else result shr 1
                 if (k == 0) lat += d else lon += d
             }
-            out += lat / 1e5 to lon / 1e5
+            out += lat / scale to lon / scale
         }
         return out
+    }
+
+    /** The reverse of [decode], for tests and for storing a line compactly. */
+    fun geometryOf(pts: List<Pair<Double, Double>>, precision: Int = 5): String {
+        val scale = Math.pow(10.0, precision.toDouble())
+        val sb = StringBuilder()
+        var pLat = 0L
+        var pLon = 0L
+        fun put(v0: Long) {
+            var v = if (v0 < 0) (v0 shl 1).inv() else v0 shl 1
+            while (v >= 0x20) { sb.append(((0x20L or (v and 0x1f)) + 63).toInt().toChar()); v = v shr 5 }
+            sb.append((v + 63).toInt().toChar())
+        }
+        for ((la, lo) in pts) {
+            val a = Math.round(la * scale)
+            val b = Math.round(lo * scale)
+            put(a - pLat); put(b - pLon)
+            pLat = a; pLon = b
+        }
+        return sb.toString()
     }
 
     /** About 11 m resolution, so a car parked in the same spot twice shares one lookup. */
@@ -45,9 +66,13 @@ object Router {
         "rt_" + String.format(Locale.US, "%.4f,%.4f;%.4f,%.4f", a.first, a.second, b.first, b.second)
 
     /** The encoded route from [a] to [b], or null when no server answered. */
-    suspend fun fetch(a: Pair<Double, Double>, b: Pair<Double, Double>): String? = withContext(Dispatchers.IO) {
-        for (h in hosts) {
-            val url = "$h/route/v1/driving/${a.second},${a.first};${b.second},${b.first}?overview=full&geometries=polyline"
+    suspend fun fetch(a: Pair<Double, Double>, b: Pair<Double, Double>, mapplsKey: String = ""): String? = withContext(Dispatchers.IO) {
+        // MapmyIndia (Mappls) first when a key was entered, since that is what Bluelink's own app draws its trips with; OpenStreetMap otherwise
+        val urls = buildList {
+            if (mapplsKey.isNotBlank()) add("https://apis.mappls.com/advancedmaps/v1/${mapplsKey.trim()}/route_adv/driving/${a.second},${a.first};${b.second},${b.first}?geometries=polyline&overview=full")
+            for (h in hosts) add("$h/route/v1/driving/${a.second},${a.first};${b.second},${b.first}?overview=full&geometries=polyline")
+        }
+        for (url in urls) {
             val g = try {
                 http.newCall(Request.Builder().url(url).header("User-Agent", "creta-remote-app (personal car app)").build()).execute().use { r ->
                     if (!r.isSuccessful) null else geometry(r.body?.string().orEmpty())

@@ -26,6 +26,8 @@ data class Settings(
     val checkUpdates: Boolean = true,
     /** While a drive session runs, save this phone's GPS positions on the phone so a day's map can show the path actually driven. */
     val recordRoute: Boolean = false,
+    /** Optional MapmyIndia (Mappls) REST key: road routes are asked from Mappls first, as Bluelink's own app does, then OpenStreetMap. */
+    val mapplsKey: String = "",
     /** The car's Bluetooth, if chosen: connecting to it starts a drive session at once. */
     val carBtAddress: String = "",
     val carBtName: String = "",
@@ -69,6 +71,7 @@ class SettingsStore(context: Context) {
         driveSession = p.getBoolean("drive", true),
         checkUpdates = p.getBoolean("chkUpd", true),
         recordRoute = p.getBoolean("recRoute", false),
+        mapplsKey = p.getString("mapplsKey", "") ?: "",
         carBtAddress = p.getString("btAddr", "") ?: "",
         carBtName = p.getString("btName", "") ?: "",
         fuelLimitL = p.getInt("fuelLimit", FuelWatch.DEFAULT).coerceIn(FuelWatch.MIN, FuelWatch.MAX),
@@ -96,6 +99,7 @@ class SettingsStore(context: Context) {
             putBoolean("drive", s.driveSession)
             putBoolean("chkUpd", s.checkUpdates)
             putBoolean("recRoute", s.recordRoute)
+            putString("mapplsKey", s.mapplsKey)
             putString("btAddr", s.carBtAddress)
             putString("btName", s.carBtName)
             putInt("fuelLimit", s.fuelLimitL)
