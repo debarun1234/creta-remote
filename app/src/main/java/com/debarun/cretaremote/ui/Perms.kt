@@ -29,6 +29,17 @@ object Perms {
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
+    /** Needed to list the paired Bluetooth devices. Android 11 and older grant it with the install. */
+    fun btAllowed(ctx: Context): Boolean =
+        android.os.Build.VERSION.SDK_INT < 31 ||
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+
+    /** True when the user has set this app to unrestricted battery use, which lets it start the drive session from the background. */
+    fun batteryUnrestricted(ctx: Context): Boolean =
+        (ctx.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager)?.isIgnoringBatteryOptimizations(ctx.packageName) == true
+
+    fun openBatterySettings(ctx: Context) = start(ctx, Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+
     /** Android only shows each permission dialog a couple of times, so remember that we already asked. */
     fun asked(ctx: Context, key: String): Boolean = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(key, false)
     fun markAsked(ctx: Context, key: String) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(key, true) }

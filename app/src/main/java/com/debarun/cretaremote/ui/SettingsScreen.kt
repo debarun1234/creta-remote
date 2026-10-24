@@ -1,6 +1,12 @@
 package com.debarun.cretaremote.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothManager
+import android.content.Context
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -288,17 +294,61 @@ private fun PermissionsPanel(d: AppData, vm: AppViewModel) {
     val locOn = remember(tick) { Perms.locationAllowed(ctx) }
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { tick++ }
     val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { tick++ }
+    val btOn = remember(tick) { Perms.btAllowed(ctx) }
+    val battOn = remember(tick) { Perms.batteryUnrestricted(ctx) }
+    var pick by remember { mutableStateOf(false) }
+    val btLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> tick++; if (granted) pick = true }
 
     Panel(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Eyebrow("Permissions and alerts")
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Txt("Wake the car on open", size = 14.sp, weight = FontWeight.Medium)
-                    Txt("Sends a live status request when you open the app, then every 3 minutes for up to 10 minutes, so the car is awake when you act. Uses a little car battery and mobile data.", size = 12.sp, color = C.Dim)
+                Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                    Txt("Stay connected while driving", size = 14.sp, weight = FontWeight.Medium)
+                    Txt("While the engine is on, the app keeps reading the car in the background (every 30 seconds, with a notification) so trips, distance and fuel are captured as you drive. The engine being on already means the car is awake, so this wakes nothing. It stops a few minutes after the engine is off.", size = 12.sp, color = C.Dim)
+                }
+                Toggle(s.driveSession, { vm.saveSettings(s.copy(driveSession = it)) })
+            }
+            if (s.driveSession) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Txt("Car Bluetooth", size = 15.sp, weight = FontWeight.Medium)
+                        Txt(
+                            if (s.carBtAddress.isBlank()) "Pick the car's Bluetooth and the app connects the moment the car does. Without it, it connects when you open the app or at the next background check (about 15 minutes)."
+                            else "Connects when ${s.carBtName.ifBlank { "the car" }} does.",
+                            size = 12.sp, color = C.Dim,
+                        )
+                    }
+                    Box(Modifier.width(108.dp)) {
+                        GhostButton(if (s.carBtAddress.isBlank()) "Choose" else "Change", {
+                            if (btOn) pick = true
+                            else if (!Perms.asked(ctx, "bt")) {
+                                Perms.markAsked(ctx, "bt")
+                                btLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                            } else Perms.openAppSettings(ctx)
+                        }, color = C.Cyan)
+                    }
+                }
+                PermRow(
+                    "Unrestricted battery", "Lets Android start the drive session by itself when the car connects. Set this app to Unrestricted, or the session may only start while the app is open.", battOn,
+                    onAllow = { Perms.openBatterySettings(ctx) },
+                    onManage = { Perms.openBatterySettings(ctx) },
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                    Txt("Wake the car for commands", size = 14.sp, weight = FontWeight.Medium)
+                    Txt("The dashboard never needs this: it reads the car's last report straight from Bluelink. Switch this on only to make lock, unlock and start quicker: it sends a live request when you open the app, then every 3 minutes for up to 10 minutes. Uses a little car battery and mobile data.", size = 12.sp, color = C.Dim)
                 }
                 Toggle(s.keepAwake, { vm.saveSettings(s.copy(keepAwake = it)) })
+            }
+            if (pick) {
+                BtPicker(
+                    current = s.carBtAddress,
+                    onPick = { name, address -> vm.saveSettings(s.copy(carBtName = name, carBtAddress = address)); pick = false },
+                    onDismiss = { pick = false },
+                )
             }
 
             PermRow(
@@ -340,6 +390,41 @@ private fun PermissionsPanel(d: AppData, vm: AppViewModel) {
             )
         }
     }
+}
+
+/** Lists the phone's paired Bluetooth devices so the car's can be picked. */
+@SuppressLint("MissingPermission")
+@Composable
+private fun BtPicker(current: String, onPick: (name: String, address: String) -> Unit, onDismiss: () -> Unit) {
+    val ctx = LocalContext.current
+    val devices = remember {
+        try {
+            (ctx.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter?.bondedDevices
+                ?.map { (it.name ?: it.address) to it.address }?.sortedBy { it.first.lowercase() } ?: emptyList()
+        } catch (e: SecurityException) {
+            emptyList()
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = C.Surface2,
+        title = { Txt("Which one is the car?", size = 18.sp, weight = FontWeight.Medium) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (devices.isEmpty()) {
+                    Txt("No paired Bluetooth devices. Pair the phone with the car first (the car's Bluetooth must be switched on).", size = 13.sp, color = C.Dim)
+                }
+                devices.forEach { (name, address) ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onPick(name, address) }.padding(vertical = 12.dp, horizontal = 4.dp)) {
+                        Txt(name, Modifier.weight(1f), size = 15.sp, weight = if (address == current) FontWeight.Bold else FontWeight.Normal)
+                        if (address == current) Txt("Selected", size = 12.sp, color = C.Green)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        dismissButton = if (current.isNotBlank()) ({ TextButton(onClick = { onPick("", "") }) { Text("Clear") } }) else null,
+    )
 }
 
 @Composable

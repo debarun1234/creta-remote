@@ -18,7 +18,13 @@ data class Settings(
     val serviceMonths: Int = 12,
     val notifyCommands: Boolean = true,
     val notifyAlerts: Boolean = true,
-    val keepAwake: Boolean = true,
+    /** Pre-wakes the car shortly after the app opens, so commands are quicker. Off by default: reading the dashboard never needs it. */
+    val keepAwake: Boolean = false,
+    /** While the engine is on, stay attached to the car in the background and keep reading its live data. */
+    val driveSession: Boolean = true,
+    /** The car's Bluetooth, if chosen: connecting to it starts a drive session at once. */
+    val carBtAddress: String = "",
+    val carBtName: String = "",
     /** Litres to keep in the tank on this trip; alerts fire as it nears this. */
     val fuelLimitL: Int = FuelWatch.DEFAULT,
     /** When the Bluelink password was last set (ms), 0 = not tracked yet. */
@@ -55,7 +61,10 @@ class SettingsStore(context: Context) {
         serviceMonths = p.getInt("svcMonths", 12),
         notifyCommands = p.getBoolean("ncmd", true),
         notifyAlerts = p.getBoolean("nalert", true),
-        keepAwake = p.getBoolean("awake", true),
+        keepAwake = p.getBoolean("wakeOpen", false),
+        driveSession = p.getBoolean("drive", true),
+        carBtAddress = p.getString("btAddr", "") ?: "",
+        carBtName = p.getString("btName", "") ?: "",
         fuelLimitL = p.getInt("fuelLimit", FuelWatch.DEFAULT).coerceIn(FuelWatch.MIN, FuelWatch.MAX),
         passwordSetAt = p.getLong("pwSetAt", 0L),
         passwordDays = p.getInt("pwDays", 90).coerceIn(1, 365),
@@ -77,7 +86,10 @@ class SettingsStore(context: Context) {
             putInt("svcMonths", s.serviceMonths)
             putBoolean("ncmd", s.notifyCommands)
             putBoolean("nalert", s.notifyAlerts)
-            putBoolean("awake", s.keepAwake)
+            putBoolean("wakeOpen", s.keepAwake)
+            putBoolean("drive", s.driveSession)
+            putString("btAddr", s.carBtAddress)
+            putString("btName", s.carBtName)
             putInt("fuelLimit", s.fuelLimitL)
             putLong("pwSetAt", s.passwordSetAt)
             putInt("pwDays", s.passwordDays)

@@ -22,6 +22,7 @@ object AppForeground {
 /** System notifications: command results and car alerts. Everything checks that the user has allowed notifications. */
 object Notifier {
     private const val CH_COMMANDS = "commands"
+    const val CH_DRIVE = "drive"
     private const val CH_ALERTS = "alerts"
     private const val CH_FUEL_ALARM = "fuel_alarm"
     const val ID_FUEL_HEADS_UP = 301
@@ -33,6 +34,10 @@ object Notifier {
         nm.createNotificationChannel(
             NotificationChannel(CH_COMMANDS, "Command results", NotificationManager.IMPORTANCE_DEFAULT)
                 .apply { description = "How lock, unlock, engine and horn commands ended, when the app is closed" },
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CH_DRIVE, "Connected to car", NotificationManager.IMPORTANCE_LOW)
+                .apply { description = "Shown while the app is reading the car live because the engine is on"; setShowBadge(false) },
         )
         nm.createNotificationChannel(
             NotificationChannel(CH_ALERTS, "Car alerts", NotificationManager.IMPORTANCE_HIGH)

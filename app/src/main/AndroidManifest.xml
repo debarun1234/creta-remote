@@ -8,6 +8,12 @@
     <!-- Only the fuel alarm uses it, and only when Android 14+ lets this app (Notifier.canUseFullScreen); otherwise it stays a loud heads-up notification. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" tools:ignore="FullScreenIntentPolicy" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Drive session: stays attached to the car while the engine is on. The Bluetooth permissions are only for picking the car's Bluetooth and hearing when it connects. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <application
@@ -97,6 +103,22 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <service
+            android:name=".service.DriveService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Bluetooth broadcasts come from the Bluetooth app, not this one, so the receiver has to be exported; it only reacts to the chosen car. -->
+        <receiver
+            android:name=".service.DriveTrigger"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+                <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
+            </intent-filter>
+        </receiver>
 
         <receiver
             android:name=".quick.FuelAckReceiver"

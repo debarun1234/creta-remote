@@ -1,5 +1,6 @@
 package com.debarun.cretaremote.data
 
+import com.debarun.cretaremote.service.DriveState
 import android.content.Context
 import android.location.Geocoder
 import com.debarun.cretaremote.bluelink.ActionResult
@@ -383,7 +384,7 @@ class Repository(private val ctx: Context) {
 
     /** [live] = ask the car for fresh data (slower, wakes modem). Otherwise, read the cloud copy (fast). */
     /** Returns true when the car answered, false when it did not, null when another refresh was already running. */
-    suspend fun refresh(live: Boolean, quiet: Boolean = false): Boolean? {
+    suspend fun refresh(live: Boolean, quiet: Boolean = false, light: Boolean = false): Boolean? {
         if (!refreshLock.tryLock()) return null
         if (!quiet) _data.update { it.copy(refreshing = true, error = null) }
         try {
@@ -397,12 +398,13 @@ class Repository(private val ctx: Context) {
                             if (e.auth) throw e else client.statusLive(s, v)
                         }
                     }
-                    val lo = async { client.parkLocation(s, v) }
-                    val mt = async { client.maintenance(s, v) }
-                    Fetched(st.await(), lo.await(), mt.await())
+                    // a light read is the status alone: the parked location and service dates do not change while driving
+                    val lo = if (light) null else async { client.parkLocation(s, v) }
+                    val mt = if (light) null else async { client.maintenance(s, v) }
+                    Fetched(st.await(), lo?.await(), mt?.await())
                 }
             }
-            applyFetched(f)
+            applyFetched(f, light)
             lastRefreshError = null
             return true
         } catch (e: Exception) {
@@ -414,7 +416,7 @@ class Repository(private val ctx: Context) {
         }
     }
 
-    private suspend fun applyFetched(f: Fetched) = withContext(Dispatchers.IO) {
+    private suspend fun applyFetched(f: Fetched, light: Boolean = false) = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         // keep the previous raw part if this fetch lacked it
         val prev = store.kvGet("raw")?.let { runCatching { JSONObject(it) }.getOrNull() }
@@ -433,9 +435,14 @@ class Repository(private val ctx: Context) {
         // history
         val last = store.lastSnapshot()
         val changed = last == null || last.odo != car.odometerKm || last.fuel != car.fuelPct || last.locked != car.locked || last.engine != car.engineOn
+        var stored = false
         if (car.fuelPct != null || car.odometerKm != null) {
-            if (changed || now - last!!.ts > 60 * 60_000L) {
+            // while driving a reading arrives every 30 s; keep one per kilometre (or when anything else changes) so the table stays small
+            val rolling = last != null && last.engine == true && car.engineOn == true && last.fuel == car.fuelPct && last.locked == car.locked &&
+                (car.odometerKm ?: 0.0) - (last.odo ?: 0.0) < 1.0
+            if ((changed && !rolling) || now - last!!.ts > 60 * 60_000L) {
                 store.addSnapshot(Snapshot(now, car.odometerKm, car.fuelPct, car.dteKm, car.locked, car.engineOn))
+                stored = true
             }
         }
         val lat = car.lat
@@ -451,11 +458,13 @@ class Repository(private val ctx: Context) {
                 fetchedAt = now,
                 refreshing = false,
                 error = null,
-                insights = computeInsights(car),
+                insights = if (light && !stored) it.insights else computeInsights(car),
                 liveTrip = liveTripOf(car),
                 places = store.places(),
             )
         }
+        // the engine is on: stay attached (a no-op when a session is already running or Android says no from the background)
+        if (car.engineOn == true && _data.value.settings.driveSession && hasCreds()) com.debarun.cretaremote.service.DriveService.start(ctx)
     }
 
     /**
@@ -861,28 +870,29 @@ class Repository(private val ctx: Context) {
     private fun hasCreds() = vault.get("email") != null && vault.get("password") != null
 
     /**
-     * The car's modem sleeps and has to be woken before it will act, which is most of the wait on every command.
-     * A live status read is the closest thing Bluelink offers to a wake-up call, so while the app is on screen it
-     * sends one on open and again every few minutes, for at most [KEEP_AWAKE_MS] after the last activity. That cap
-     * protects the 12 V battery and Hyundai's rate limit.
+     * Reading the dashboard never needs a wake-up: the car pushes its status to Bluelink's cloud and that copy is what the
+     * official app shows too. So while the app is on screen it just re-reads the cloud copy (status only, one request): every
+     * 30 s with the engine on, every minute otherwise. Only commands need the modem awake. If "Wake the car on open" is
+     * switched on, a live status request is also sent on open and every few minutes for [KEEP_AWAKE_MS], so commands are quicker.
      */
     fun onForeground(visible: Boolean) {
         AppForeground.visible = visible
         if (!visible) { keepJob?.cancel(); keepJob = null; return }
-        if (!hasCreds() || !_data.value.settings.keepAwake) return
+        if (!hasCreds()) return
         lastActivity = System.currentTimeMillis()
         if (keepJob?.isActive == true) return
         keepJob = scope.launch {
-            while (AppForeground.visible && (System.currentTimeMillis() - lastActivity < KEEP_AWAKE_MS || _data.value.car?.engineOn == true)) {
+            while (AppForeground.visible) {
                 val nowMs = System.currentTimeMillis()
-                if (!_data.value.cmd.busy && nowMs - lastPing > PING_EVERY_MS) {
+                val engine = _data.value.car?.engineOn == true
+                val idle = !_data.value.cmd.busy
+                if (idle && _data.value.settings.keepAwake && !engine && nowMs - lastActivity < KEEP_AWAKE_MS && nowMs - lastPing > PING_EVERY_MS) {
                     wakePing()
-                } else if (_data.value.car?.engineOn == true && !_data.value.cmd.busy && nowMs - lastQuick > 45_000L) {
-                    // while driving, re-read the cloud copy every 45 s so the trip distance follows the car
+                } else if (idle && !DriveState.active && nowMs - lastQuick > (if (engine) 30_000L else 60_000L)) {
                     lastQuick = nowMs
-                    refresh(live = false, quiet = true)
+                    refresh(live = false, quiet = true, light = true)
                 }
-                delay(15.seconds)
+                delay(5.seconds)
             }
         }
     }
@@ -920,6 +930,57 @@ class Repository(private val ctx: Context) {
         if (!_data.value.settings.keepAwake || !hasCreds()) return
         if (System.currentTimeMillis() - lastPing < PING_EVERY_MS) return
         scope.launch { wakePing() }
+    }
+
+    /**
+     * One drive, run by [com.debarun.cretaremote.service.DriveService]. The engine is on, so the modem is already up and nothing
+     * here wakes anything: it reads the cloud copy every 30 s, asks the car directly every 2 minutes (the cloud copy can lag),
+     * and stores each reading, so the odometer and fuel gauge are captured as the car moves. It returns a few minutes after the
+     * engine goes off, sooner when the car's Bluetooth has dropped. [onTick] receives a line for the notification.
+     */
+    suspend fun driveSession(onTick: (String) -> Unit) {
+        if (!hasCreds()) return
+        val t0 = System.currentTimeMillis()
+        var lastLive = 0L
+        var offSince = 0L
+        var failures = 0
+        while (System.currentTimeMillis() - t0 < com.debarun.cretaremote.service.DriveService.MAX_MS) {
+            val nowMs = System.currentTimeMillis()
+            val live = nowMs - lastLive >= DRIVE_LIVE_MS
+            val ok = if (_data.value.cmd.busy) null else refresh(live = live, quiet = true, light = true)
+            if (ok != null && live) lastLive = nowMs
+            if (ok == true) {
+                failures = 0
+                _data.update { it.copy(link = Link.AWAKE, linkAt = System.currentTimeMillis()) }
+                val car = _data.value.car
+                if (car?.engineOn == true) {
+                    // a cached copy that has not changed since the engine was seen off can be stale; only a live answer or a newer report counts
+                    if (live || (car.updatedAt ?: 0L) > offSince) offSince = 0L
+                } else if (offSince == 0L) offSince = nowMs
+            } else if (ok == false) {
+                val e = lastRefreshError
+                // a live request the car does not answer means its modem has gone to sleep, which is what the engine going off looks like
+                val noAnswer = live && (e is java.net.SocketTimeoutException || (e is BluelinkException && e.code in setOf("4081", "9999", "5921")))
+                if (noAnswer) { if (offSince == 0L) offSince = nowMs } else failures++
+            }
+            val lt = _data.value.liveTrip
+            onTick(
+                when {
+                    failures >= 3 -> "Can't reach Bluelink, retrying…"
+                    lt != null -> "%.1f km this trip".format(Locale.US, lt.km) + (lt.kmpl?.let { " · %.1f km/L".format(Locale.US, it) } ?: "")
+                    offSince != 0L -> "Engine off, finishing up…"
+                    else -> "Waiting for the car…"
+                },
+            )
+            // the engine must read off for a few minutes (a minute once the car's Bluetooth has gone) and the session must be 3 minutes old
+            val offFor = if (com.debarun.cretaremote.service.DriveState.btOffAt > 0L) 60_000L else 4 * 60_000L
+            if (offSince != 0L && nowMs - offSince >= offFor && nowMs - t0 >= 3 * 60_000L) break
+            if (failures >= 12) break
+            delay((if (failures == 0) 30L else if (failures < 3) 45L else 90L).seconds)
+        }
+        // one last live read for the closing odometer and fuel, then pick up the trip Bluelink recorded
+        if (!_data.value.cmd.busy) refresh(live = true, quiet = true, light = true)
+        loadTrips(currentMonth())
     }
 
     // ------------------------------------------------------------------ activity log
@@ -1083,6 +1144,7 @@ class Repository(private val ctx: Context) {
         const val KEEP_AWAKE_MS = 10 * 60_000L
         const val PASSWORD_WARN_DAYS = 7
         const val PING_EVERY_MS = 3 * 60_000L
+        const val DRIVE_LIVE_MS = 2 * 60_000L
     }
 
     private fun setCmd(c: Cmd, p: Phase, m: String) = _data.update { it.copy(cmd = CmdUi(c, p, m)) }

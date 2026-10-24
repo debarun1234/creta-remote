@@ -53,7 +53,17 @@ class Store(context: Context) : SQLiteOpenHelper(context, "creta.db", null, 1) {
     }
 
     @Synchronized
-    fun lastSnapshot(): Snapshot? = snapshots().lastOrNull()
+    fun lastSnapshot(): Snapshot? =
+        readableDatabase.rawQuery("SELECT ts,odo,fuel,dte,locked,engine FROM snapshots ORDER BY ts DESC LIMIT 1", null).use { c ->
+            if (!c.moveToFirst()) null else Snapshot(
+                c.getLong(0),
+                if (c.isNull(1)) null else c.getDouble(1),
+                if (c.isNull(2)) null else c.getDouble(2),
+                if (c.isNull(3)) null else c.getDouble(3),
+                if (c.isNull(4)) null else c.getInt(4) == 1,
+                if (c.isNull(5)) null else c.getInt(5) == 1,
+            )
+        }
 
     @Synchronized
     fun addPlace(p: Place) {
