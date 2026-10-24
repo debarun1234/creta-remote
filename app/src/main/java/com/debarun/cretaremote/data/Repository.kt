@@ -413,10 +413,11 @@ class Repository(private val ctx: Context) {
                             if (e.auth) throw e else client.statusLive(s, v)
                         }
                     }
-                    // a light read is the status alone: the parked location and service dates do not change while driving
+                    // a light read skips the parked location, which cannot change while driving. It still reads the maintenance record,
+                    // because that is where Bluelink keeps the odometer: the status has none
                     val lo = if (light) null else async { client.parkLocation(s, v) }
-                    val mt = if (light) null else async { client.maintenance(s, v) }
-                    Fetched(st.await(), lo?.await(), mt?.await())
+                    val mt = async { client.maintenance(s, v) }
+                    Fetched(st.await(), lo?.await(), mt.await())
                 }
             }
             applyFetched(f, light)
@@ -613,8 +614,9 @@ class Repository(private val ctx: Context) {
     /**
      * Bluelink's own trip figures run short (the dash said 37 km, the cloud 34 km). The odometer cannot: every metre driven moves it,
      * and it stays put while the car is parked. So a day's distance is the odometer from just before its first trip to just after its
-     * last, from the readings the app records. When that is a plausible amount more than the cloud figure it replaces it, and the day's
-     * trips are scaled to add up to it.
+     * last, from the readings the app records. The odometer is in whole kilometres, so a single day is only good to about 1 km; the
+     * month's odometer total fixes how short Bluelink runs, and each day takes Bluelink's figure corrected by that, held inside the
+     * odometer's range. The day's trips are scaled to add up to it.
      */
     private fun fixDays(days: List<DayRow>): List<DayRow> {
         if (days.none { it.dist > 0 }) return days
@@ -622,24 +624,36 @@ class Repository(private val ctx: Context) {
         if (snaps.size < 2) return days
         val stamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.US)
         fun at(day: String, hhmmss: String): Long? = runCatching { stamp.parse(day + hhmmss.padStart(6, '0'))!!.time }.getOrNull()
-        return days.map { r ->
-            if (r.dist <= 0.0) return@map r
+        // odometer distance for each day, or null when the readings around it can't be trusted
+        val odo: Map<String, Double> = days.mapNotNull { r ->
+            if (r.dist <= 0.0) return@mapNotNull null
             val es = r.entries()
             val starts = es.mapNotNull { e -> at(r.day, e.startHhmmss) }
-            if (starts.isEmpty()) return@map r
+            if (starts.isEmpty()) return@mapNotNull null
             val ends = es.mapNotNull { e ->
                 val s0 = at(r.day, e.startHhmmss) ?: return@mapNotNull null
                 val e0 = e.endHhmmss?.let { at(r.day, it) } ?: e.driveMin?.let { s0 + it * 60_000L } ?: return@mapNotNull null
                 if (e0 < s0) e0 + 86_400_000L else e0
             }
-            val lastEnd = ends.maxOrNull() ?: return@map r
-            val first = starts.minOrNull() ?: return@map r
+            val lastEnd = ends.maxOrNull() ?: return@mapNotNull null
+            val first = starts.minOrNull() ?: return@mapNotNull null
             // parked readings are the safe ends: the odometer does not move while the engine is off
             val a = (snaps.lastOrNull { it.ts <= first && it.engine != true } ?: snaps.lastOrNull { it.ts <= first })?.odo
             val b = (snaps.firstOrNull { it.ts >= lastEnd && it.engine != true } ?: snaps.firstOrNull { it.ts >= lastEnd })?.odo
-            if (a == null || b == null) return@map r
-            val odoKm = b - a
-            if (odoKm <= r.dist + 0.05 || odoKm > r.dist * 1.35 + 5.0) r else scaleDay(r, odoKm)
+            if (a == null || b == null) return@mapNotNull null
+            val d = b - a
+            // days where the odometer shows no more than Bluelink still count towards the month's calibration; only a wild gap is dropped
+            if (d < 0.0 || d > r.dist * 1.35 + 5.0) null else r.day to d
+        }.toMap()
+        // The odometer counts whole kilometres, so one day can be a kilometre out either way, but over a month those errors cancel.
+        // So the month's odometer total against Bluelink's own total says by how much Bluelink runs short, and each day takes
+        // Bluelink's figure corrected by that, held inside what the odometer allows.
+        val bothCloud = days.filter { it.day in odo }.sumOf { it.dist }
+        val k = if (odo.size >= 4 && bothCloud > 0) (odo.values.sum() / bothCloud).coerceIn(1.0, 1.3) else null
+        return days.map { r ->
+            val d = odo[r.day] ?: return@map r
+            val est = if (k == null) d else (r.dist * k).coerceIn(d - 1.0, d + 1.0)
+            if (est <= r.dist + 0.05) r else scaleDay(r, est)
         }
     }
 
