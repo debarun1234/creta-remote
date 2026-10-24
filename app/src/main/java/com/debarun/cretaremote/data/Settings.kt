@@ -24,6 +24,8 @@ data class Settings(
     val driveSession: Boolean = true,
     /** Look for a newer release on GitHub each time the app opens. */
     val checkUpdates: Boolean = true,
+    /** While a drive session runs, save this phone's GPS positions on the phone so a day's map can show the path actually driven. */
+    val recordRoute: Boolean = false,
     /** The car's Bluetooth, if chosen: connecting to it starts a drive session at once. */
     val carBtAddress: String = "",
     val carBtName: String = "",
@@ -66,6 +68,7 @@ class SettingsStore(context: Context) {
         keepAwake = p.getBoolean("wakeOpen", false),
         driveSession = p.getBoolean("drive", true),
         checkUpdates = p.getBoolean("chkUpd", true),
+        recordRoute = p.getBoolean("recRoute", false),
         carBtAddress = p.getString("btAddr", "") ?: "",
         carBtName = p.getString("btName", "") ?: "",
         fuelLimitL = p.getInt("fuelLimit", FuelWatch.DEFAULT).coerceIn(FuelWatch.MIN, FuelWatch.MAX),
@@ -92,6 +95,7 @@ class SettingsStore(context: Context) {
             putBoolean("wakeOpen", s.keepAwake)
             putBoolean("drive", s.driveSession)
             putBoolean("chkUpd", s.checkUpdates)
+            putBoolean("recRoute", s.recordRoute)
             putString("btAddr", s.carBtAddress)
             putString("btName", s.carBtName)
             putInt("fuelLimit", s.fuelLimitL)

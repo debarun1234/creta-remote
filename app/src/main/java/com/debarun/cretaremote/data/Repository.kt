@@ -67,7 +67,16 @@ data class TyreLog(val ts: Long, val psi: List<Double?>)
 data class RouteLeg(val pts: List<Pair<Double, Double>>, val straight: Boolean, val km: Double)
 
 /** A day on the map: the places the car stood, in order, and the legs between them. */
-data class DayRoute(val stops: List<Place>, val legs: List<RouteLeg>, val trips: Int)
+data class DayRoute(
+    val stops: List<Place>,
+    val legs: List<RouteLeg>,
+    val trips: Int,
+    /** The path recorded from this phone's GPS while the app was connected to the car, as separate unbroken pieces. */
+    val track: List<List<Pair<Double, Double>>> = emptyList(),
+    val trackKm: Double = 0.0,
+    /** How many of the day's trips have a recorded path. */
+    val tripsCovered: Int = 0,
+)
 
 /** The drive in progress, odometer since the engine started, and a rough economy from the gauge while it lasts. */
 data class LiveTrip(val km: Double, val litresUsed: Double?, val kmpl: Double?)
@@ -809,6 +818,43 @@ class Repository(private val ctx: Context) {
         return a to b
     }
 
+    /** Each trip's start and end, from the times Bluelink gave. */
+    private fun tripWindows(r: DayRow): List<Pair<Long, Long>> {
+        val stamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.US)
+        fun at(hhmmss: String): Long? = runCatching { stamp.parse(r.day + hhmmss.padStart(6, '0'))!!.time }.getOrNull()
+        return r.entries().mapNotNull { e ->
+            val s0 = at(e.startHhmmss) ?: return@mapNotNull null
+            val e0 = e.endHhmmss?.let { at(it) } ?: e.driveMin?.let { s0 + it * 60_000L } ?: return@mapNotNull null
+            s0 to (if (e0 < s0) e0 + 86_400_000L else e0)
+        }
+    }
+
+    /** Called for each GPS fix while a drive session records the route. */
+    fun recordTrackPoint(ts: Long, lat: Double, lon: Double, acc: Float?, spd: Float?) {
+        scope.launch(Dispatchers.IO) { runCatching { store.addTrack(ts, lat, lon, acc, spd) } }
+    }
+
+    /** Route history is kept for four months, then dropped. */
+    fun pruneTrack() { scope.launch(Dispatchers.IO) { runCatching { store.pruneTrack(System.currentTimeMillis() - 120L * 86_400_000L) } } }
+
+    fun clearRouteHistory() { scope.launch(Dispatchers.IO) { runCatching { store.clearTrack() } } }
+
+    /** Unbroken pieces of the recorded path: a gap of more than 5 minutes starts a new piece, and fixes closer than 15 m are merged. */
+    private fun pathPieces(raw: List<TrackPoint>): List<List<Pair<Double, Double>>> {
+        val pieces = mutableListOf<MutableList<Pair<Double, Double>>>()
+        var cur: MutableList<Pair<Double, Double>>? = null
+        var lastTs = 0L
+        var kept: Pair<Double, Double>? = null
+        for (p in raw) {
+            if (cur == null || p.ts - lastTs > 5 * 60_000L) { cur = mutableListOf(); pieces += cur; kept = null }
+            lastTs = p.ts
+            val pt = p.lat to p.lon
+            val k = kept
+            if (k == null || Geo.distanceM(k.first, k.second, pt.first, pt.second) >= 15.0) { cur.add(pt); kept = pt }
+        }
+        return pieces.filter { it.size >= 2 }
+    }
+
     /**
      * The places the car stood during a day (where it started, then each place it parked) joined by road routes. Bluelink does not send a
      * GPS track, only where the car parks, so each leg is the road route between two consecutive stops; the exact streets driven may differ.
@@ -821,6 +867,15 @@ class Repository(private val ctx: Context) {
         val from = span?.first ?: dayStart
         val to = span?.second?.plus(45 * 60_000L) ?: (dayStart + 86_400_000L)
         val stops = listOfNotNull(store.placeAtOrBefore(from)) + store.placesBetween(from, to)
+        // the path actually driven, when this phone recorded it
+        val windows = row?.let { tripWindows(it) }.orEmpty()
+        val raw = store.track((span?.first ?: dayStart) - 10 * 60_000L, (span?.second ?: (dayStart + 86_400_000L)) + 10 * 60_000L)
+        val covered = windows.count { (a, b) -> raw.count { it.ts in (a - 120_000L)..(b + 120_000L) } >= 2 }
+        val pieces = if (raw.size >= 2 && (covered > 0 || windows.isEmpty())) pathPieces(raw) else emptyList()
+        if (pieces.isNotEmpty()) {
+            val km = pieces.sumOf { pc -> pc.zipWithNext().sumOf { (x, y) -> Geo.distanceM(x.first, x.second, y.first, y.second) } } / 1000.0
+            return@withContext DayRoute(stops, emptyList(), row?.count ?: 0, pieces, km, covered)
+        }
         val legs = stops.zipWithNext().map { (a, b) -> routeLeg(a, b) }
         DayRoute(stops, legs, row?.count ?: 0)
     }

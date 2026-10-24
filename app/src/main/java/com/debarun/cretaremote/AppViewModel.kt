@@ -24,6 +24,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun placesFor(yyyymm: String) = repo.placesFor(yyyymm)
     suspend fun earliestPlaceMonth() = repo.earliestPlaceMonth()
     suspend fun dayRoute(day: String) = repo.dayRoute(day)
+    fun clearRouteHistory() = repo.clearRouteHistory()
     fun installUpdate() = repo.installUpdate()
     fun saveTyreLog(psi: List<Double?>) = repo.saveTyreLog(psi)
     fun rawForSupport() = repo.rawForSupport()

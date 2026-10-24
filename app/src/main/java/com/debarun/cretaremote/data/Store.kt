@@ -10,16 +10,51 @@ data class Place(val ts: Long, val lat: Double, val lon: Double, val label: Stri
 data class DayRow(val day: String, val count: Int, val dist: Double, val drive: Int, val idle: Int, val avg: Double, val max: Double, val trips: String, val fetched: Long)
 
 /** Local history: odometer/fuel snapshots, parking places and cached trip days. Plain SQLite, no extra deps. */
-class Store(context: Context) : SQLiteOpenHelper(context, "creta.db", null, 1) {
+data class TrackPoint(val ts: Long, val lat: Double, val lon: Double)
+
+class Store(context: Context) : SQLiteOpenHelper(context, "creta.db", null, 2) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE snapshots(ts INTEGER PRIMARY KEY, odo REAL, fuel REAL, dte REAL, locked INTEGER, engine INTEGER)")
         db.execSQL("CREATE TABLE places(ts INTEGER PRIMARY KEY, lat REAL NOT NULL, lon REAL NOT NULL, label TEXT)")
         db.execSQL("CREATE TABLE trip_days(day TEXT PRIMARY KEY, cnt INTEGER, dist REAL, drive INTEGER, idle INTEGER, avg REAL, max REAL, trips TEXT, fetched INTEGER)")
         db.execSQL("CREATE TABLE kv(k TEXT PRIMARY KEY, v TEXT)")
+        createTrack(db)
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) createTrack(db)
+    }
+
+    private fun createTrack(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS track(ts INTEGER PRIMARY KEY, lat REAL NOT NULL, lon REAL NOT NULL, acc REAL, spd REAL)")
+    }
+
+    @Synchronized
+    fun addTrack(ts: Long, lat: Double, lon: Double, acc: Float?, spd: Float?) {
+        val cv = ContentValues().apply { put("ts", ts); put("lat", lat); put("lon", lon); put("acc", acc); put("spd", spd) }
+        writableDatabase.insertWithOnConflict("track", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    /** GPS positions recorded in [from, to], oldest first. */
+    @Synchronized
+    fun track(from: Long, to: Long): List<TrackPoint> {
+        val out = mutableListOf<TrackPoint>()
+        readableDatabase.rawQuery("SELECT ts,lat,lon FROM track WHERE ts>=? AND ts<=? ORDER BY ts ASC", arrayOf(from.toString(), to.toString())).use { c ->
+            while (c.moveToNext()) out += TrackPoint(c.getLong(0), c.getDouble(1), c.getDouble(2))
+        }
+        return out
+    }
+
+    @Synchronized
+    fun pruneTrack(before: Long) {
+        writableDatabase.execSQL("DELETE FROM track WHERE ts<?", arrayOf<Any>(before))
+    }
+
+    @Synchronized
+    fun clearTrack() {
+        writableDatabase.execSQL("DELETE FROM track")
+    }
 
     @Synchronized
     fun addSnapshot(s: Snapshot) {

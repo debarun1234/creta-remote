@@ -11,6 +11,9 @@
     <!-- Drive session: stays attached to the car while the engine is on. The Bluetooth permissions are only for picking the car's Bluetooth and hearing when it connects. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Optional route recording while driving (off by default): GPS from this phone, kept on this phone. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Updates: lets the app hand a downloaded release to the installer (Android still asks the user to allow it). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -117,7 +120,7 @@
         <service
             android:name=".service.DriveService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync|location" />
 
         <!-- Bluetooth broadcasts come from the Bluetooth app, not this one, so the receiver has to be exported; it only reacts to the chosen car. -->
         <receiver

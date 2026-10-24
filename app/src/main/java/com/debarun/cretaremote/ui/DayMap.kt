@@ -35,8 +35,29 @@ fun DayMap(day: String, trips: Int, vm: AppViewModel) {
             r == null -> Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
                 Txt("Drawing the route…", size = 13.sp, color = C.Dim)
             }
+            r.track.isNotEmpty() -> {
+                val all = r.track.flatten()
+                Box(Modifier.fillMaxWidth().height(320.dp).clip(RoundedCornerShape(16.dp))) {
+                    CarMap(
+                        points = listOf(all.first(), all.last()),
+                        label = null,
+                        sub = null,
+                        modifier = Modifier.fillMaxSize(),
+                        showTrail = false,
+                        carHere = false,
+                        routes = r.track.map { MapLeg(it) },
+                    )
+                }
+                Txt("${Fmt.n(r.trackKm, 1)} km along the recorded path", size = 12.sp, color = C.Dim)
+                Txt(
+                    "Recorded from this phone's GPS while the app was connected to the car" +
+                        (if (r.trips > 0) " for ${r.tripsCovered} of ${r.trips} trip${if (r.trips == 1) "" else "s"}" else "") +
+                        ". Bluelink itself sends no path, so the parts that were not recorded are missing.",
+                    size = 11.sp, color = C.Faint,
+                )
+            }
             r.stops.size < 2 -> Txt(
-                "No parking spots were recorded around this day's trips, so there is nothing to draw. The app notes where the car parks each time it checks in; the drive session does that after every trip.",
+                "No path was recorded for this day, and no parking spots were seen around its trips, so there is nothing to draw. Turn on Settings → Record the route to capture the path from this phone while you drive.",
                 size = 12.sp, color = C.Dim,
             )
             else -> {
@@ -61,7 +82,7 @@ fun DayMap(day: String, trips: Int, vm: AppViewModel) {
                     )
                 }
                 if (r.legs.any { it.straight }) Txt("Dashed lines are straight because no road route could be fetched (needs internet).", size = 11.sp, color = C.Faint)
-                Txt("Stop 1 is where the car started. Lines follow roads between stops; the exact streets driven may differ.", size = 11.sp, color = C.Faint)
+                Txt("Stop 1 is where the car started. Lines follow roads between stops; the exact streets driven may differ. Turn on Settings → Record the route to capture the real path.", size = 11.sp, color = C.Faint)
             }
         }
     }

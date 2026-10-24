@@ -5,7 +5,13 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.annotation.SuppressLint
 import android.content.pm.ServiceInfo
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.os.Bundle
+import android.os.Looper
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
@@ -43,6 +49,7 @@ class DriveService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var job: Job? = null
     private var wake: PowerManager.WakeLock? = null
+    private var locListener: LocationListener? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -51,8 +58,21 @@ class DriveService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        val repo = (application as CretaApp).repo
+        // recording the route needs the location type; Android only allows that from the background with "Allow all the time"
+        val wantRoute = repo.data.value.settings.recordRoute && com.debarun.cretaremote.ui.Perms.fineLocationAllowed(this)
+        var recording = false
         try {
-            ServiceCompat.startForeground(this, ID, build("Connecting to the car…"), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            if (wantRoute) {
+                try {
+                    ServiceCompat.startForeground(this, ID, build("Connecting to the car…"), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+                    recording = true
+                } catch (e: Exception) {
+                    ServiceCompat.startForeground(this, ID, build("Connecting to the car…"), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                }
+            } else {
+                ServiceCompat.startForeground(this, ID, build("Connecting to the car…"), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            }
         } catch (e: Exception) {
             // Android refused to let a background app start this; the next trigger will try again
             stopSelf()
@@ -63,7 +83,8 @@ class DriveService : Service() {
         // the CPU must stay awake between polls or a screen-off phone would sleep through its own timers
         wake = (getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "cretaremote:drive")
             .apply { setReferenceCounted(false); acquire(MAX_MS + 60_000L) }
-        val repo = (application as CretaApp).repo
+        if (recording) startTrack(repo)
+        repo.pruneTrack()
         job = scope.launch {
             try {
                 repo.driveSession { text -> update(text) }
@@ -83,9 +104,39 @@ class DriveService : Service() {
 
     override fun onDestroy() {
         DriveState.active = false
+        stopTrack()
         scope.cancel()
         try { wake?.takeIf { it.isHeld }?.release() } catch (e: Exception) { }
         super.onDestroy()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startTrack(repo: com.debarun.cretaremote.data.Repository) {
+        if (locListener != null) return
+        val lm = getSystemService(LOCATION_SERVICE) as? LocationManager ?: return
+        val l = object : LocationListener {
+            override fun onLocationChanged(location: Location) {
+                if (location.hasAccuracy() && location.accuracy > 60f) return
+                val ts = location.time.takeIf { it > 0L } ?: System.currentTimeMillis()
+                repo.recordTrackPoint(ts, location.latitude, location.longitude, if (location.hasAccuracy()) location.accuracy else null, if (location.hasSpeed()) location.speed else null)
+            }
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
+            @Deprecated("Deprecated in Java")
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+        }
+        try {
+            lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 5_000L, 10f, l, Looper.getMainLooper())
+            locListener = l
+        } catch (e: Exception) {
+            // GPS is off or the permission was withdrawn: the drive session still runs without a route
+        }
+    }
+
+    private fun stopTrack() {
+        val l = locListener ?: return
+        try { (getSystemService(LOCATION_SERVICE) as? LocationManager)?.removeUpdates(l) } catch (e: Exception) { }
+        locListener = null
     }
 
     private fun update(text: String) {

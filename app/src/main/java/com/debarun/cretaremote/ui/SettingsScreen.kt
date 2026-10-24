@@ -299,6 +299,7 @@ private fun PermissionsPanel(d: AppData, vm: AppViewModel) {
     val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { tick++ }
     val btOn = remember(tick) { Perms.btAllowed(ctx) }
     val battOn = remember(tick) { Perms.batteryUnrestricted(ctx) }
+    val bgOn = remember(tick) { Perms.backgroundLocationAllowed(ctx) }
     var pick by remember { mutableStateOf(false) }
     val btLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> tick++; if (granted) pick = true }
 
@@ -332,6 +333,31 @@ private fun PermissionsPanel(d: AppData, vm: AppViewModel) {
                             } else Perms.openAppSettings(ctx)
                         }, color = C.Cyan)
                     }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                        Txt("Record the route", size = 14.sp, weight = FontWeight.Medium)
+                        Txt("Bluelink only reports where the car parks, so a day's map can only show the path actually driven if this phone records it. While the drive session runs, this phone's GPS positions are saved on the phone (never sent anywhere) and drawn on the day's map in Trips. Kept for four months.", size = 12.sp, color = C.Dim)
+                    }
+                    Toggle(s.recordRoute, { vm.saveSettings(s.copy(recordRoute = it)) })
+                }
+                if (s.recordRoute) {
+                    PermRow(
+                        "Location access", "Allows GPS while you drive.", locOn,
+                        onAllow = {
+                            if (!Perms.asked(ctx, "loc")) {
+                                Perms.markAsked(ctx, "loc")
+                                locLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                            } else Perms.openAppSettings(ctx)
+                        },
+                        onManage = { Perms.openAppSettings(ctx) },
+                    )
+                    PermRow(
+                        "Location all the time", "So the route is recorded when the drive session starts by itself with the app closed. In the page that opens: Permissions → Location → Allow all the time. Without it, routes are only recorded when the session starts while the app is open.", bgOn,
+                        onAllow = { Perms.openAppSettings(ctx) },
+                        onManage = { Perms.openAppSettings(ctx) },
+                    )
+                    GhostButton("Delete recorded routes", { vm.clearRouteHistory() })
                 }
                 PermRow(
                     "Unrestricted battery", "Lets Android start the drive session by itself when the car connects. Set this app to Unrestricted, or the session may only start while the app is open.", battOn,
@@ -382,7 +408,7 @@ private fun PermissionsPanel(d: AppData, vm: AppViewModel) {
             }
 
             PermRow(
-                "Location", "Shows where you are on the map and how far the car is. Used only while the Places screen is open, never stored or sent.", locOn,
+                "Location", "Shows where you are on the map and how far the car is while the Places screen is open. Never sent anywhere.", locOn,
                 onAllow = {
                     if (!Perms.asked(ctx, "loc")) {
                         Perms.markAsked(ctx, "loc")

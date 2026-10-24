@@ -29,6 +29,13 @@ object Perms {
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
+    fun fineLocationAllowed(ctx: Context): Boolean =
+        ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    /** "Allow all the time": what lets the route be recorded when the drive session starts with the app closed. */
+    fun backgroundLocationAllowed(ctx: Context): Boolean =
+        android.os.Build.VERSION.SDK_INT < 29 || ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+
     /** Needed to list the paired Bluetooth devices. Android 11 and older grant it with the install. */
     fun btAllowed(ctx: Context): Boolean =
         android.os.Build.VERSION.SDK_INT < 31 ||
