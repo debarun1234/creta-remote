@@ -914,6 +914,12 @@ class Repository(private val ctx: Context) {
             "trip/route?serviceTID=$tid" to null,
             "driving/route?serviceTID=$tid" to null,
             "drvinfo?serviceTID=$tid" to null,
+            "tripinfo/path" to dayBody().put("serviceTID", tid),
+            "trip/path?tripId=$tid" to null,
+            "drive-history/trip/path?tripId=$tid" to null,
+            "location/route?serviceTID=$tid" to null,
+            "location/routes" to null,
+            "routeinfo?serviceTID=$tid" to null,
         )
         for ((path, body) in tries) {
             val r = try { api { s -> client.probe(s, ensureVehicle(s), path, body) } } catch (e: Exception) { "error: ${e.message}" }
