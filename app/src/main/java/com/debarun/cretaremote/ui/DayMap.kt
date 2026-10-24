@@ -43,15 +43,7 @@ fun DayMap(day: String, trips: Int, vm: AppViewModel, dayKm: Double = 0.0) {
             r.track.isNotEmpty() -> {
                 val all = r.track.flatten()
                 Box(Modifier.fillMaxWidth().height(320.dp).clip(RoundedCornerShape(16.dp))) {
-                    CarMap(
-                        points = listOf(all.first(), all.last()),
-                        label = null,
-                        sub = null,
-                        modifier = Modifier.fillMaxSize(),
-                        showTrail = false,
-                        carHere = false,
-                        routes = r.track.map { MapLeg(it) },
-                    )
+                    RouteMap(listOf(all.first(), all.last()), r.track.map { MapLeg(it) }, false)
                 }
                 Txt("${Fmt.n(r.trackKm, 1)} km along the recorded path", size = 12.sp, color = C.Dim)
                 Txt(
@@ -63,16 +55,7 @@ fun DayMap(day: String, trips: Int, vm: AppViewModel, dayKm: Double = 0.0) {
             }
             r.source == "bluelink" -> {
                 Box(Modifier.fillMaxWidth().height(320.dp).clip(RoundedCornerShape(16.dp))) {
-                    CarMap(
-                        points = r.stops.map { it.lat to it.lon },
-                        label = null,
-                        sub = null,
-                        modifier = Modifier.fillMaxSize(),
-                        showTrail = false,
-                        carHere = false,
-                        routes = r.legs.map { MapLeg(it.pts, it.straight) },
-                        numbered = true,
-                    )
+                    RouteMap(r.stops.map { it.lat to it.lon }, r.legs.map { MapLeg(it.pts, it.straight) }, true)
                 }
                 val lineKm = r.legs.sumOf { it.km }
                 Txt("${r.tripsCovered} of ${r.trips} trip${if (r.trips == 1) "" else "s"} · start and end points from Bluelink", size = 12.sp, color = C.Dim)
@@ -91,16 +74,7 @@ fun DayMap(day: String, trips: Int, vm: AppViewModel, dayKm: Double = 0.0) {
             )
             else -> {
                 Box(Modifier.fillMaxWidth().height(320.dp).clip(RoundedCornerShape(16.dp))) {
-                    CarMap(
-                        points = r.stops.map { it.lat to it.lon },
-                        label = null,
-                        sub = null,
-                        modifier = Modifier.fillMaxSize(),
-                        showTrail = false,
-                        carHere = false,
-                        routes = r.legs.map { MapLeg(it.pts, it.straight) },
-                        numbered = true,
-                    )
+                    RouteMap(r.stops.map { it.lat to it.lon }, r.legs.map { MapLeg(it.pts, it.straight) }, true)
                 }
                 val km = r.legs.sumOf { it.km }
                 Txt("${r.stops.size} stops · about ${Fmt.n(km, 1)} km ${if (roads) "by road (estimate)" else "in a straight line"}", size = 12.sp, color = C.Dim)
@@ -114,5 +88,16 @@ fun DayMap(day: String, trips: Int, vm: AppViewModel, dayKm: Double = 0.0) {
                 Txt("Stop 1 is where the car started. The lines only join the stops; they are not the streets driven. Turn on Settings → Record the route to capture the real path.", size = 11.sp, color = C.Faint)
             }
         }
+    }
+}
+
+/** Mappls' map when it can start, else our own OpenStreetMap view. */
+@Composable
+private fun RouteMap(points: List<Pair<Double, Double>>, routes: List<MapLeg>, numbered: Boolean) {
+    var mappls by remember { mutableStateOf(true) }
+    if (mappls) {
+        MapplsRouteMap(points, routes, numbered, Modifier.fillMaxSize(), onFail = { mappls = false })
+    } else {
+        CarMap(points = points, label = null, sub = null, modifier = Modifier.fillMaxSize(), showTrail = false, carHere = false, routes = routes, numbered = numbered)
     }
 }

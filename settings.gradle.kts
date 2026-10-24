@@ -13,6 +13,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven(url = "https://maven.mappls.com/repository/mappls/")
     }
 }
 rootProject.name = "creta-remote"

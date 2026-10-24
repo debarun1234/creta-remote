@@ -17,6 +17,8 @@ class CretaApp : Application() {
     override fun onCreate() {
         super.onCreate()
         repo = Repository(this)
+        // Mappls map: a missing or mismatched config only means the app draws its own OpenStreetMap view instead
+        try { com.mappls.sdk.maps.Mappls.getInstance(this) } catch (e: Throwable) { android.util.Log.w("Mappls", "not started: ${e.message}") }
         com.debarun.cretaremote.data.Notifier.ensureChannels(this)
         // Builds fuel / mileage history in the background (cheap cloud read, never wakes the car).
         val req = PeriodicWorkRequestBuilder<SnapshotWorker>(15, TimeUnit.MINUTES)

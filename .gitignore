@@ -12,3 +12,7 @@
 *.aab
 keystore.properties
 *.jks
+
+# Mappls credentials tied to this app and its signing key
+app/*.a.conf
+app/*.a.olf

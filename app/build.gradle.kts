@@ -75,6 +75,9 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.fragment:fragment-ktx:1.8.5")
+    // Mappls (MapmyIndia) map. Needs this app's two <appId>.a.conf / .a.olf files in app/ (git-ignored); without them the map falls back to OpenStreetMap.
+    implementation(platform("com.mappls.sdk:mappls-bom:2.0.4"))
+    implementation("com.mappls.sdk:mappls-android-sdk")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
