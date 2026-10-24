@@ -24,7 +24,8 @@ cp app/build/outputs/apk/release/app-release.apk "$OUT"
 
 echo "3/5 Committing and tagging"
 git add app/build.gradle.kts
-git commit -m "Release $VER"
+# the version may already be $VER (a first release), in which case there is nothing to commit and the tag goes on the current commit
+git diff --cached --quiet || git commit -m "Release $VER"
 git tag "v$VER"
 
 echo "4/5 Pushing"
