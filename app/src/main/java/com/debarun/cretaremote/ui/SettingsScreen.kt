@@ -52,6 +52,7 @@ import com.debarun.cretaremote.data.Notifier
 import com.debarun.cretaremote.AppViewModel
 import com.debarun.cretaremote.data.AppData
 import com.debarun.cretaremote.data.Powertrain
+import com.debarun.cretaremote.data.UpdateStatus
 import com.debarun.cretaremote.data.Transmission
 import com.debarun.cretaremote.data.Vin
 import com.debarun.cretaremote.data.passwordDaysLeft
@@ -173,6 +174,8 @@ private fun SettingsList(d: AppData, vm: AppViewModel, onAbout: () -> Unit) {
         }
 
         PermissionsPanel(d, vm)
+
+        UpdatesPanel(d, vm)
 
         Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -388,6 +391,70 @@ private fun PermissionsPanel(d: AppData, vm: AppViewModel) {
                 },
                 onManage = { Perms.openAppSettings(ctx) },
             )
+        }
+    }
+}
+
+/** A strip on the home screen while a newer release is waiting. */
+@Composable
+fun UpdateBanner(u: com.debarun.cretaremote.data.UpdateUi, onUpdate: () -> Unit) {
+    val rel = u.release ?: return
+    val working = u.status == UpdateStatus.DOWNLOADING
+    Panel(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).clickable(enabled = !working) { onUpdate() }) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Txt("Version ${rel.version} is available", size = 15.sp, weight = FontWeight.SemiBold)
+                Txt(
+                    when (u.status) {
+                        UpdateStatus.DOWNLOADING -> "Downloading ${(u.progress * 100).toInt()}%"
+                        else -> u.message ?: "Tap to update. Your data stays."
+                    },
+                    size = 12.sp, color = C.Dim,
+                )
+            }
+            if (!working) Txt("Update", size = 14.sp, weight = FontWeight.Medium, color = C.Cyan)
+        }
+    }
+}
+
+@Composable
+private fun UpdatesPanel(d: AppData, vm: AppViewModel) {
+    val s = d.settings
+    val u = d.update
+    val rel = u.release
+    Panel(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Eyebrow("App updates")
+            Txt("Installed version ${BuildConfig.VERSION_NAME}", size = 14.sp, weight = FontWeight.Medium)
+            Txt(
+                when (u.status) {
+                    UpdateStatus.CHECKING -> "Checking GitHub…"
+                    UpdateStatus.UP_TO_DATE -> "You have the latest version."
+                    UpdateStatus.AVAILABLE, UpdateStatus.READY -> "Version ${rel?.version} is available."
+                    UpdateStatus.DOWNLOADING -> "Downloading ${(u.progress * 100).toInt()}%"
+                    UpdateStatus.ERROR -> u.message ?: "Could not check."
+                    UpdateStatus.IDLE -> "Updates come from github.com/${com.debarun.cretaremote.data.Updater.REPO}, since the app is not on the Play Store."
+                },
+                size = 12.sp, color = if (u.status == UpdateStatus.ERROR) C.Amber else C.Dim,
+            )
+            if (u.status == UpdateStatus.AVAILABLE || u.status == UpdateStatus.READY) u.message?.let { Txt(it, size = 12.sp, color = C.Dim) }
+            rel?.takeIf { u.status == UpdateStatus.AVAILABLE || u.status == UpdateStatus.READY || u.status == UpdateStatus.DOWNLOADING }?.notes?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                Txt(it.take(500), size = 12.sp, color = C.Faint)
+            }
+            if (rel != null && u.status != UpdateStatus.UP_TO_DATE && u.status != UpdateStatus.CHECKING) {
+                PrimaryButton(
+                    if (u.status == UpdateStatus.DOWNLOADING) "Downloading…" else "Update to ${rel.version}",
+                    { vm.installUpdate() }, enabled = u.status != UpdateStatus.DOWNLOADING,
+                )
+            }
+            GhostButton("Check now", { vm.checkUpdates() })
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                    Txt("Check when the app opens", size = 14.sp, weight = FontWeight.Medium)
+                    Txt("Looks for a newer release on GitHub each time you open the app, and now and then in the background, and notifies you once per new version. Downloads nothing until you tap Update.", size = 12.sp, color = C.Dim)
+                }
+                Toggle(s.checkUpdates, { vm.saveSettings(s.copy(checkUpdates = it)) })
+            }
         }
     }
 }

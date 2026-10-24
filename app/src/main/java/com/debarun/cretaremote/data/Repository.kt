@@ -1,5 +1,6 @@
 package com.debarun.cretaremote.data
 
+import com.debarun.cretaremote.BuildConfig
 import com.debarun.cretaremote.service.DriveState
 import android.content.Context
 import android.location.Geocoder
@@ -94,6 +95,7 @@ data class AppData(
     val fuel: FuelWatchUi = FuelWatchUi(),
     val tyreLog: TyreLog? = null,
     val liveTrip: LiveTrip? = null,
+    val update: UpdateUi = UpdateUi(),
 )
 
 fun DayRow.entries(): List<TripEntry> = try {
@@ -142,6 +144,7 @@ class Repository(private val ctx: Context) {
         val hasCreds = email != null && vault.get("password") != null
         withContext(Dispatchers.IO) {
             loadVehicleFromStore()
+            runCatching { cleanUpdates() }
             val raw = store.kvGet("raw")
             val car = raw?.let { runCatching { parseRaw(JSONObject(it)) }.getOrNull() }
             val fetched = raw?.let { runCatching { JSONObject(it).optLong("fetched") }.getOrNull() }
@@ -590,6 +593,7 @@ class Repository(private val ctx: Context) {
     suspend fun backgroundSnapshot(): Boolean {
         if (vault.get("email") == null) return true
         checkPasswordExpiry()
+        runCatching { checkUpdatesNow(manual = false, minGapMs = 6 * 3_600_000L) }
         // while driving the modem is awake anyway, so ask the car directly; otherwise take the cached reading
         refresh(live = _data.value.car?.engineOn == true)
         return _data.value.error == null
@@ -866,6 +870,78 @@ class Repository(private val ctx: Context) {
         )
     }
 
+    // ------------------------------------------------------------------ app updates
+
+    private fun setUpdate(f: (UpdateUi) -> UpdateUi) = _data.update { it.copy(update = f(it.update)) }
+
+    /** Looks for a newer GitHub release: on every open (at most every 15 minutes) and, quietly, from the background check (every 6 hours). */
+    fun checkUpdates(manual: Boolean = false) { scope.launch { checkUpdatesNow(manual, 15 * 60_000L) } }
+
+    suspend fun checkUpdatesNow(manual: Boolean, minGapMs: Long) {
+        if (!manual && !_data.value.settings.checkUpdates) return
+        val now = System.currentTimeMillis()
+        if (!manual && now - (store.kvGet("upd_check")?.toLongOrNull() ?: 0L) < minGapMs) return
+        val busy = _data.value.update.status
+        if (busy == UpdateStatus.DOWNLOADING || busy == UpdateStatus.CHECKING) return
+        if (manual) setUpdate { it.copy(status = UpdateStatus.CHECKING, message = null) }
+        try {
+            val rel = Updater.latest()
+            store.kvPut("upd_check", now.toString())
+            when {
+                rel == null -> if (manual) setUpdate { it.copy(status = UpdateStatus.ERROR, message = "No published release with an APK found at github.com/${Updater.REPO}. If that repository is private, releases can't be read from the app.", checkedAt = now) }
+                Updater.isNewer(rel.version, BuildConfig.VERSION_NAME) -> {
+                    setUpdate { if (it.status == UpdateStatus.READY && it.release?.version == rel.version) it.copy(checkedAt = now) else UpdateUi(UpdateStatus.AVAILABLE, rel, checkedAt = now) }
+                    if (store.kvGet("upd_notified") != rel.version) {
+                        store.kvPut("upd_notified", rel.version)
+                        Notifier.update(ctx, rel.version, rel.notes)
+                    }
+                }
+                else -> setUpdate { UpdateUi(UpdateStatus.UP_TO_DATE, checkedAt = now) }
+            }
+        } catch (e: Exception) {
+            if (manual) setUpdate { it.copy(status = UpdateStatus.ERROR, message = friendly(e), checkedAt = now) }
+            else setUpdate { if (it.status == UpdateStatus.CHECKING) it.copy(status = UpdateStatus.IDLE) else it }
+        }
+    }
+
+    /** Downloads the available release and opens Android's installer, which updates the app in place. */
+    fun installUpdate() { scope.launch { installUpdateNow() } }
+
+    private suspend fun installUpdateNow() {
+        val rel = _data.value.update.release ?: return
+        if (_data.value.update.status == UpdateStatus.DOWNLOADING) return
+        if (!Updater.canInstall(ctx)) {
+            setUpdate { it.copy(message = "Allow \"Install unknown apps\" for Creta Remote on the page that just opened, then tap Update again.") }
+            Updater.openInstallPermission(ctx)
+            return
+        }
+        val file = java.io.File(ctx.cacheDir, "updates/creta-remote-${rel.version}.apk")
+        try {
+            if (!file.exists() || (rel.bytes > 0 && file.length() != rel.bytes)) {
+                setUpdate { it.copy(status = UpdateStatus.DOWNLOADING, progress = 0f, message = null) }
+                Updater.download(rel, file) { p -> setUpdate { u -> u.copy(progress = p) } }
+            }
+            val why = withContext(Dispatchers.IO) { Updater.problem(ctx, file) }
+            if (why != null) {
+                file.delete()
+                setUpdate { it.copy(status = UpdateStatus.ERROR, message = why) }
+                return
+            }
+            setUpdate { it.copy(status = UpdateStatus.READY, message = "Confirm in the installer to finish. Your data stays.") }
+            Updater.launchInstaller(ctx, file)
+        } catch (e: Exception) {
+            setUpdate { it.copy(status = UpdateStatus.ERROR, message = friendly(e)) }
+        }
+    }
+
+    /** Removes downloaded installers once the app has been updated to (or past) them. */
+    private fun cleanUpdates() {
+        java.io.File(ctx.cacheDir, "updates").listFiles()?.forEach { f ->
+            val v = Updater.parseVersion(f.name.removePrefix("creta-remote-")) ?: return@forEach
+            if (!Updater.isNewer(v.joinToString("."), BuildConfig.VERSION_NAME)) f.delete()
+        }
+    }
+
     // ------------------------------------------------------------------ wake-up
 
     @Volatile private var lastActivity = 0L
@@ -893,6 +969,7 @@ class Repository(private val ctx: Context) {
     fun onForeground(visible: Boolean) {
         AppForeground.visible = visible
         if (!visible) { keepJob?.cancel(); keepJob = null; return }
+        checkUpdates()
         if (!hasCreds()) return
         lastActivity = System.currentTimeMillis()
         if (keepJob?.isActive == true) return

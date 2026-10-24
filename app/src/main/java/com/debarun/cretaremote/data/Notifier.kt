@@ -23,6 +23,8 @@ object AppForeground {
 object Notifier {
     private const val CH_COMMANDS = "commands"
     const val CH_DRIVE = "drive"
+    private const val CH_UPDATES = "updates"
+    const val ID_UPDATE = 304
     private const val CH_ALERTS = "alerts"
     private const val CH_FUEL_ALARM = "fuel_alarm"
     const val ID_FUEL_HEADS_UP = 301
@@ -34,6 +36,10 @@ object Notifier {
         nm.createNotificationChannel(
             NotificationChannel(CH_COMMANDS, "Command results", NotificationManager.IMPORTANCE_DEFAULT)
                 .apply { description = "How lock, unlock, engine and horn commands ended, when the app is closed" },
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CH_UPDATES, "App updates", NotificationManager.IMPORTANCE_DEFAULT)
+                .apply { description = "A newer version of Creta Remote is available on GitHub" },
         )
         nm.createNotificationChannel(
             NotificationChannel(CH_DRIVE, "Connected to car", NotificationManager.IMPORTANCE_LOW)
@@ -58,13 +64,13 @@ object Notifier {
     fun enabled(ctx: Context) = NotificationManagerCompat.from(ctx).areNotificationsEnabled()
 
     @SuppressLint("MissingPermission")
-    private fun post(ctx: Context, id: Int, channel: String, title: String, text: String) {
+    private fun post(ctx: Context, id: Int, channel: String, title: String, text: String, action: String? = null) {
         val nm = NotificationManagerCompat.from(ctx)
         if (!nm.areNotificationsEnabled()) return
         ensureChannels(ctx)
         val open = PendingIntent.getActivity(
             ctx, 0,
-            Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP).also { i -> if (action != null) i.action = action },
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val n = NotificationCompat.Builder(ctx, channel)
@@ -91,6 +97,12 @@ object Notifier {
         Cmd.HORN -> "Horn & lights"
         Cmd.LIGHTS -> "Lights"
         Cmd.BOOT -> "Boot release"
+    }
+
+    /** A newer release exists on GitHub. Tapping it opens Settings and starts the update. */
+    fun update(ctx: Context, version: String, notes: String) {
+        val line = notes.lineSequence().map { it.trim().trimStart('#', '-', '*', ' ') }.firstOrNull { it.isNotBlank() }?.take(120)
+        post(ctx, ID_UPDATE, CH_UPDATES, "Creta Remote $version is available", line ?: "Tap to update. Your data stays.", com.debarun.cretaremote.data.Updater.ACTION)
     }
 
     fun command(ctx: Context, cmd: Cmd, outcome: Outcome, message: String) {

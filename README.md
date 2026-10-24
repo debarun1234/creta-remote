@@ -92,3 +92,12 @@ app/src/main/java/com/debarun/cretaremote/
 ```
 
 Not affiliated with Hyundai. Use at your own risk, and keep your Bluelink credentials to yourself.
+
+## Updates (not on the Play Store)
+
+The app checks `github.com/debarun1234/creta-remote` for a newer release each time it opens (and now and then in the background), shows a banner and a notification once per new version, and Settings → App updates has "Check now" and "Update". Tapping Update downloads the APK and opens Android's installer, which replaces the installed app and keeps its data and fuel log.
+
+- Publish a version: `./scripts/release.sh 1.0.1 "What changed"` (bumps the version, builds the signed APK, tags, pushes, creates the GitHub release with the APK attached).
+- Updates only install over the top when the APK is signed with the same key as the installed app. A debug build installed from Android Studio has a different key, so install the first release APK once (uninstall the debug build first; that erases the app's data), and every update after that is in place. Keep `~/.creta-remote/` and its password safe: a new key means another uninstall.
+- The repository must be public for the app to read its releases without a token (a token inside the APK would be readable by anyone who has the APK).
+- Android asks once to allow "Install unknown apps" for Creta Remote.

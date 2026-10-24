@@ -22,6 +22,8 @@ data class Settings(
     val keepAwake: Boolean = false,
     /** While the engine is on, stay attached to the car in the background and keep reading its live data. */
     val driveSession: Boolean = true,
+    /** Look for a newer release on GitHub each time the app opens. */
+    val checkUpdates: Boolean = true,
     /** The car's Bluetooth, if chosen: connecting to it starts a drive session at once. */
     val carBtAddress: String = "",
     val carBtName: String = "",
@@ -63,6 +65,7 @@ class SettingsStore(context: Context) {
         notifyAlerts = p.getBoolean("nalert", true),
         keepAwake = p.getBoolean("wakeOpen", false),
         driveSession = p.getBoolean("drive", true),
+        checkUpdates = p.getBoolean("chkUpd", true),
         carBtAddress = p.getString("btAddr", "") ?: "",
         carBtName = p.getString("btName", "") ?: "",
         fuelLimitL = p.getInt("fuelLimit", FuelWatch.DEFAULT).coerceIn(FuelWatch.MIN, FuelWatch.MAX),
@@ -88,6 +91,7 @@ class SettingsStore(context: Context) {
             putBoolean("nalert", s.notifyAlerts)
             putBoolean("wakeOpen", s.keepAwake)
             putBoolean("drive", s.driveSession)
+            putBoolean("chkUpd", s.checkUpdates)
             putString("btAddr", s.carBtAddress)
             putString("btName", s.carBtName)
             putInt("fuelLimit", s.fuelLimitL)

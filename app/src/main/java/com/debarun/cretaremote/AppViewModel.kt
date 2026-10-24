@@ -20,6 +20,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh(live: Boolean) { viewModelScope.launch { if (live) repo.syncLive() else repo.refresh(false) } }
     fun run(cmd: Cmd) { viewModelScope.launch { repo.run(cmd) } }
     fun cancelCmd() = repo.cancelCmd()
+    fun checkUpdates() = repo.checkUpdates(manual = true)
+    fun installUpdate() = repo.installUpdate()
     fun saveTyreLog(psi: List<Double?>) = repo.saveTyreLog(psi)
     fun rawForSupport() = repo.rawForSupport()
     fun setFuelLimit(l: Int) = repo.setFuelLimit(l)

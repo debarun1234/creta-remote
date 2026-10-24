@@ -125,6 +125,10 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
             )
         }
 
+        if (d.update.release != null && d.update.status in setOf(com.debarun.cretaremote.data.UpdateStatus.AVAILABLE, com.debarun.cretaremote.data.UpdateStatus.DOWNLOADING, com.debarun.cretaremote.data.UpdateStatus.READY, com.debarun.cretaremote.data.UpdateStatus.ERROR)) {
+            UpdateBanner(d.update) { vm.installUpdate() }
+        }
+
         FuelAlarmBanner(d.fuel.stage, d.fuel.litres, d.settings.fuelLimitL, onAck = vm::ackFuelAlarm)
 
         // ------------------------------------------------------------- hero

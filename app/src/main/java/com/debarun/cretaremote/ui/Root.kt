@@ -138,6 +138,7 @@ private fun Shell(
             "com.debarun.cretaremote.START" -> act(Cmd.START)
             "com.debarun.cretaremote.LIGHTS" -> act(Cmd.LIGHTS)
             "com.debarun.cretaremote.BOOT" -> act(Cmd.BOOT)
+            com.debarun.cretaremote.data.Updater.ACTION -> { tab = Tab.SETTINGS.ordinal; vm.installUpdate() }
         }
         if (action != null) launchAction.value = null
     }
