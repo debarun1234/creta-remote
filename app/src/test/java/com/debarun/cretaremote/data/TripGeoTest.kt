@@ -13,6 +13,14 @@ class TripGeoTest {
         assertEquals(77.6, g.end!!.second, 1e-9)
     }
 
+    @Test fun readsTheShapeBluelinkIndiaActuallySends() {
+        val g = TripGeoParser.parse("""{"tripStartTime":"20261024080211","tripStartCoord":{"lat":13.137752777777777,"lon":77.57145555555556},"tripEndTime":"20261024080654","tripEndCoord":{"lat":13.130378981481481,"lon":77.57155833333333},"serviceTID":20261024023211}""")!!
+        assertEquals(13.137752777777777, g.start!!.first, 1e-9)
+        assertEquals(77.57145555555556, g.start!!.second, 1e-9)
+        assertEquals(13.130378981481481, g.end!!.first, 1e-9)
+        assertEquals(77.57155833333333, g.end!!.second, 1e-9)
+    }
+
     @Test fun findsNestedCoordObjects() {
         val g = TripGeoParser.parse("""{"startPos":{"coord":{"lat":13.1,"lon":77.5}},"goalPos":{"coord":{"lat":13.0,"lon":77.6}}}""")!!
         assertEquals(77.5, g.start!!.second, 1e-9)
