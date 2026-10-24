@@ -63,7 +63,13 @@ data class TripMonthUi(val yyyymm: String, val summary: TripSummary?, val days: 
 /** Tyre pressures the driver read off the dashboard or a pump and logged by hand (psi per wheel, FL FR RL RR). */
 data class TyreLog(val ts: Long, val psi: List<Double?>)
 
-/** The drive in progress: odometer since the engine started, and a rough economy from the gauge while it lasts. */
+/** One stretch of a day's map: the road route between two stops, or a straight line when no route could be found. */
+data class RouteLeg(val pts: List<Pair<Double, Double>>, val straight: Boolean, val km: Double)
+
+/** A day on the map: the places the car stood, in order, and the legs between them. */
+data class DayRoute(val stops: List<Place>, val legs: List<RouteLeg>, val trips: Int)
+
+/** The drive in progress, odometer since the engine started, and a rough economy from the gauge while it lasts. */
 data class LiveTrip(val km: Double, val litresUsed: Double?, val kmpl: Double?)
 
 /** What we know about the car's modem: it sleeps to save the battery and has to be woken before it will act. */
@@ -427,6 +433,7 @@ class Repository(private val ctx: Context) {
 
     private suspend fun applyFetched(f: Fetched, light: Boolean = false) = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
+        val wasOn = _data.value.car?.engineOn == true
         // keep the previous raw part if this fetch lacked it
         val prev = store.kvGet("raw")?.let { runCatching { JSONObject(it) }.getOrNull() }
         val raw = JSONObject()
@@ -472,6 +479,8 @@ class Repository(private val ctx: Context) {
                 places = store.places(),
             )
         }
+        // a trip just ended: light reads skip the parked location, so pick it up once the car has had time to report it
+        if (light && wasOn && car.engineOn != true) scope.launch { delay(40.seconds); refresh(live = false, quiet = true) }
         // the engine is on: stay attached (a no-op when a session is already running or Android says no from the background)
         if (car.engineOn == true && _data.value.settings.driveSession && hasCreds()) com.debarun.cretaremote.service.DriveService.start(ctx)
     }
@@ -748,6 +757,70 @@ class Repository(private val ctx: Context) {
             trips = trips.toString(),
             fetched = System.currentTimeMillis(),
         )
+    }
+
+    // ------------------------------------------------------------------ places and routes
+
+    private fun monthBounds(yyyymm: String): Pair<Long, Long>? = runCatching {
+        val f = SimpleDateFormat("yyyyMMdd", Locale.US)
+        val from = f.parse(yyyymm + "01")!!.time
+        val cal = java.util.Calendar.getInstance().apply { time = Date(from); add(java.util.Calendar.MONTH, 1) }
+        from - 1 to cal.timeInMillis - 1
+    }.getOrNull()
+
+    /** Where the car parked during [yyyymm], newest first. */
+    suspend fun placesFor(yyyymm: String): List<Place> = withContext(Dispatchers.IO) {
+        val (from, to) = monthBounds(yyyymm) ?: return@withContext emptyList()
+        store.placesBetween(from, to).asReversed()
+    }
+
+    /** The month of the oldest recorded parking spot, so the month picker knows where to stop. */
+    suspend fun earliestPlaceMonth(): String? = withContext(Dispatchers.IO) {
+        store.firstPlaceTs()?.let { SimpleDateFormat("yyyyMM", Locale.US).format(Date(it)) }
+    }
+
+    /** When a day's first trip began and its last one ended, from the trip times Bluelink gave. */
+    private fun spanOf(r: DayRow): Pair<Long, Long>? {
+        val stamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.US)
+        fun at(hhmmss: String): Long? = runCatching { stamp.parse(r.day + hhmmss.padStart(6, '0'))!!.time }.getOrNull()
+        val es = r.entries()
+        val starts = es.mapNotNull { at(it.startHhmmss) }
+        val ends = es.mapNotNull { e ->
+            val s0 = at(e.startHhmmss) ?: return@mapNotNull null
+            val e0 = e.endHhmmss?.let { at(it) } ?: e.driveMin?.let { s0 + it * 60_000L } ?: return@mapNotNull null
+            if (e0 < s0) e0 + 86_400_000L else e0
+        }
+        val a = starts.minOrNull() ?: return null
+        val b = ends.maxOrNull() ?: return null
+        return a to b
+    }
+
+    /**
+     * The places the car stood during a day (where it started, then each place it parked) joined by road routes. Bluelink does not send a
+     * GPS track, only where the car parks, so each leg is the road route between two consecutive stops; the exact streets driven may differ.
+     */
+    suspend fun dayRoute(day: String): DayRoute = withContext(Dispatchers.IO) {
+        val row = store.days(day.take(6)).firstOrNull { it.day == day }
+        val dayStart = runCatching { SimpleDateFormat("yyyyMMddHHmmss", Locale.US).parse(day + "000000")!!.time }.getOrNull()
+            ?: return@withContext DayRoute(emptyList(), emptyList(), row?.count ?: 0)
+        val span = row?.let { spanOf(it) }
+        val from = span?.first ?: dayStart
+        val to = span?.second?.plus(45 * 60_000L) ?: (dayStart + 86_400_000L)
+        val stops = listOfNotNull(store.placeAtOrBefore(from)) + store.placesBetween(from, to)
+        val legs = stops.zipWithNext().map { (a, b) -> routeLeg(a, b) }
+        DayRoute(stops, legs, row?.count ?: 0)
+    }
+
+    private suspend fun routeLeg(a: Place, b: Place): RouteLeg {
+        val pa = a.lat to a.lon
+        val pb = b.lat to b.lon
+        val crowM = Geo.distanceM(a.lat, a.lon, b.lat, b.lon)
+        fun lengthKm(p: List<Pair<Double, Double>>) = p.zipWithNext().sumOf { (x, y) -> Geo.distanceM(x.first, x.second, y.first, y.second) } / 1000.0
+        if (crowM < 120.0) return RouteLeg(listOf(pa, pb), false, crowM / 1000.0)
+        val key = Router.key(pa, pb)
+        val enc = store.kvGet(key) ?: Router.fetch(pa, pb)?.also { store.kvPut(key, it) }
+        val pts = enc?.let { runCatching { Router.decode(it) }.getOrNull() }?.takeIf { it.size >= 2 }
+        return if (pts != null) RouteLeg(pts, false, lengthKm(pts)) else RouteLeg(listOf(pa, pb), true, crowM / 1000.0)
     }
 
     // ------------------------------------------------------------------ commands
@@ -1073,7 +1146,7 @@ class Repository(private val ctx: Context) {
             delay((if (failures == 0) 30L else if (failures < 3) 45L else 90L).seconds)
         }
         // one last live read for the closing odometer and fuel, then pick up the trip Bluelink recorded
-        if (!_data.value.cmd.busy) refresh(live = true, quiet = true, light = true)
+        if (!_data.value.cmd.busy) refresh(live = true, quiet = true)
         loadTrips(currentMonth())
     }
 

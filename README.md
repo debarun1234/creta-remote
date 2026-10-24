@@ -101,3 +101,8 @@ The app checks `github.com/debarun1234/creta-remote` for a newer release each ti
 - Updates only install over the top when the APK is signed with the same key as the installed app. A debug build installed from Android Studio has a different key, so install the first release APK once (uninstall the debug build first; that erases the app's data), and every update after that is in place. Keep `~/.creta-remote/` and its password safe: a new key means another uninstall.
 - The repository must be public for the app to read its releases without a token (a token inside the APK would be readable by anyone who has the APK).
 - Android asks once to allow "Install unknown apps" for Creta Remote.
+
+## Maps
+
+- **Places** shows only where the car parked, month by month (arrows next to the title), with no lines between spots. The car is marked only in the current month.
+- **Trips → a day** shows a map of the places the car stood that day, numbered in order, joined by road routes from OpenStreetMap routing servers (cached after the first lookup). Bluelink does not send a GPS track while driving, only where the car parks, so each leg is the road route between two consecutive stops; the exact streets driven can differ. A stop only exists if the app saw the car parked there, so the drive session fetches the parked location shortly after every trip ends.

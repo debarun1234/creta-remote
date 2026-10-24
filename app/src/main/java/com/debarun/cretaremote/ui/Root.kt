@@ -157,7 +157,7 @@ private fun Shell(
                 Tab.HOME -> HomeScreen(data, vm, lockFlash, onAct = ::act, onClimate = { climate = true }, onCar = { carSheet = true }, onActivity = { activity = true })
                 Tab.INSIGHTS -> InsightsScreen(data, onFuelLimit = vm::setFuelLimit, onTyreLog = vm::saveTyreLog, onFuelLog = { fuelLog = true })
                 Tab.TRIPS -> TripsScreen(data, vm)
-                Tab.PLACES -> PlacesScreen(data)
+                Tab.PLACES -> PlacesScreen(data, vm)
                 Tab.SETTINGS -> SettingsScreen(data, vm)
             }
         }

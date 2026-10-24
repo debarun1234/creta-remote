@@ -85,6 +85,27 @@ class Store(context: Context) : SQLiteOpenHelper(context, "creta.db", null, 1) {
         return out
     }
 
+    /** Parking spots recorded in (from, to], oldest first. */
+    @Synchronized
+    fun placesBetween(from: Long, to: Long): List<Place> {
+        val out = mutableListOf<Place>()
+        readableDatabase.rawQuery("SELECT ts,lat,lon,label FROM places WHERE ts>? AND ts<=? ORDER BY ts ASC", arrayOf(from.toString(), to.toString())).use { c ->
+            while (c.moveToNext()) out += Place(c.getLong(0), c.getDouble(1), c.getDouble(2), c.getString(3))
+        }
+        return out
+    }
+
+    /** The last parking spot at or before [ts]: where the car was when a trip began. */
+    @Synchronized
+    fun placeAtOrBefore(ts: Long): Place? =
+        readableDatabase.rawQuery("SELECT ts,lat,lon,label FROM places WHERE ts<=? ORDER BY ts DESC LIMIT 1", arrayOf(ts.toString())).use { c ->
+            if (c.moveToFirst()) Place(c.getLong(0), c.getDouble(1), c.getDouble(2), c.getString(3)) else null
+        }
+
+    @Synchronized
+    fun firstPlaceTs(): Long? =
+        readableDatabase.rawQuery("SELECT MIN(ts) FROM places", null).use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null }
+
     @Synchronized
     fun upsertDay(d: DayRow) {
         val cv = ContentValues().apply {

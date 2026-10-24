@@ -225,6 +225,14 @@ private fun fitCamera(pts: List<Pair<Double, Double>>, wPx: Int, hPx: Int, dens:
 /** A request to move the map somewhere; a new [n] re-triggers even for the same place. */
 data class MapFocus(val lat: Double, val lon: Double, val n: Int)
 
+/** One stretch of road drawn on the map; [straight] marks a fallback line where no road route was found. */
+data class MapLeg(val pts: List<Pair<Double, Double>>, val straight: Boolean = false)
+
+/**
+ * [points] are the places to mark. With [carHere] the last one is the car (pulsing, with [label]); without it every point is an
+ * ordinary marker, optionally [numbered], and the map fits them all. [showTrail] joins the points with the dashed line (off for the
+ * parking map, where a line between spots was just clutter). [routes] are drawn as solid road lines.
+ */
 @Composable
 fun CarMap(
     points: List<Pair<Double, Double>>,
@@ -233,13 +241,17 @@ fun CarMap(
     modifier: Modifier = Modifier,
     focus: MapFocus? = null,
     me: Pair<Double, Double>? = null,
+    showTrail: Boolean = true,
+    carHere: Boolean = true,
+    routes: List<MapLeg> = emptyList(),
+    numbered: Boolean = false,
 ) {
     val ctx = LocalContext.current
     val dens = LocalDensity.current.density
     val scope = rememberCoroutineScope()
     val measurer = rememberTextMeasurer()
     val carPhoto = ImageBitmap.imageResource(R.drawable.creta_top_vehicle_report)
-    val car = points.lastOrNull()
+    val car = if (carHere) points.lastOrNull() else null
 
     var cLat by remember { mutableDoubleStateOf(car?.first ?: 12.9716) }
     var cLon by remember { mutableDoubleStateOf(car?.second ?: 77.5946) }
@@ -273,6 +285,17 @@ fun CarMap(
     LaunchedEffect(focus) {
         if (focus != null && sizePx != IntSize.Zero) flyTo(focus.lat, focus.lon, 16.5f, 1000)
     }
+    // no car to land on: frame everything that is drawn
+    LaunchedEffect(points, routes, sizePx) {
+        if (carHere || sizePx == IntSize.Zero) return@LaunchedEffect
+        val all = points + routes.flatMap { it.pts }
+        if (all.isEmpty()) return@LaunchedEffect
+        val (la, lo, zz) = fitCamera(all, sizePx.width, sizePx.height, dens)
+        cLat = la
+        cLon = lo
+        zoom = (zz - 1.2f).coerceAtLeast(3f)
+        flyTo(la, lo, zz, 900)
+    }
 
     // fetch whatever tiles the current view needs
     LaunchedEffect(sizePx) {
@@ -290,7 +313,7 @@ fun CarMap(
     val pulse by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart), label = "pulse")
     val flow by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing), RepeatMode.Restart), label = "flow")
     val reveal = remember { androidx.compose.animation.core.Animatable(0f) }
-    LaunchedEffect(points) { reveal.snapTo(0f); reveal.animateTo(1f, tween(1800, 900, FastOutSlowInEasing)) }
+    LaunchedEffect(points, routes) { reveal.snapTo(0f); reveal.animateTo(1f, tween(1800, 900, FastOutSlowInEasing)) }
 
     Box(modifier.onSizeChanged { sizePx = it }) {
         Canvas(
@@ -361,7 +384,7 @@ fun CarMap(
 
             // ---- trail between parking spots
             val pts = points.map { toScreen(it) }
-            if (pts.size >= 2) {
+            if (showTrail && pts.size >= 2) {
                 val path = Path().apply {
                     moveTo(pts[0].x, pts[0].y)
                     for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y)
@@ -378,14 +401,41 @@ fun CarMap(
                     ),
                 )
             }
-            for (i in 0 until pts.size - 1) {
-                drawCircle(Color(0xFF0B0D12), 6.dp.toPx(), pts[i])
-                drawCircle(C.RedHi, 4.dp.toPx(), pts[i])
-                drawCircle(Color(0xFF0B0D12), 1.8.dp.toPx(), pts[i])
+            // ---- roads driven, one leg at a time
+            for (leg in routes) {
+                val sp = leg.pts.map { toScreen(it) }
+                if (sp.size < 2) continue
+                val rp = Path().apply {
+                    moveTo(sp[0].x, sp[0].y)
+                    for (i in 1 until sp.size) lineTo(sp[i].x, sp[i].y)
+                }
+                val rm = PathMeasure().also { it.setPath(rp, false) }
+                val rs = Path()
+                rm.getSegment(0f, rm.length * reveal.value, rs, true)
+                if (leg.straight) {
+                    drawPath(rs, Color(0x99FFFFFF), style = Stroke(2.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 6.dp.toPx()), 0f)))
+                } else {
+                    drawPath(rs, C.Red.copy(alpha = 0.30f), style = Stroke(9.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                    drawPath(rs, C.RedHi, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                }
+            }
+
+            val markerEnd = if (carHere) pts.size - 1 else pts.size
+            for (i in 0 until markerEnd) {
+                if (numbered) {
+                    drawCircle(Color(0xFF0B0D12), 11.dp.toPx(), pts[i])
+                    drawCircle(C.RedHi, 9.dp.toPx(), pts[i])
+                    val nt = measurer.measure("${i + 1}", TextStyle(color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold))
+                    drawText(nt, topLeft = Offset(pts[i].x - nt.size.width / 2f, pts[i].y - nt.size.height / 2f))
+                } else {
+                    drawCircle(Color(0xFF0B0D12), 6.dp.toPx(), pts[i])
+                    drawCircle(C.RedHi, 4.dp.toPx(), pts[i])
+                    drawCircle(Color(0xFF0B0D12), 1.8.dp.toPx(), pts[i])
+                }
             }
 
             // ---- you (the phone), with a line and the distance to the car
-            if (me != null && pts.isNotEmpty()) {
+            if (me != null && car != null && pts.isNotEmpty()) {
                 val m = toScreen(me)
                 val c = pts.last()
                 drawLine(
@@ -406,7 +456,7 @@ fun CarMap(
             }
 
             // ---- the car
-            if (pts.isNotEmpty()) {
+            if (carHere && pts.isNotEmpty()) {
                 val p = pts.last()
                 for (ph in listOf(0f, 0.5f)) {
                     val t = (pulse + ph) % 1f
@@ -436,8 +486,8 @@ fun CarMap(
             MapButton(Icons.Rounded.Add) { flyTo(cLat, cLon, (zoom + 1f).coerceAtMost(18.5f), 350) }
             MapButton(Icons.Rounded.Remove) { flyTo(cLat, cLon, (zoom - 1f).coerceAtLeast(3f), 350) }
             if (car != null) MapButton(Icons.Rounded.MyLocation) { flyTo(car.first, car.second, 16f, 1100) }
-            if (points.size > 1 || me != null) MapButton(Icons.Rounded.Timeline) {
-                val (la, lo, zz) = fitCamera(points + listOfNotNull(me), sizePx.width, sizePx.height, dens)
+            if (points.size > 1 || me != null || routes.isNotEmpty()) MapButton(Icons.Rounded.Timeline) {
+                val (la, lo, zz) = fitCamera(points + routes.flatMap { it.pts } + listOfNotNull(me), sizePx.width, sizePx.height, dens)
                 flyTo(la, lo, zz, 1200)
             }
         }

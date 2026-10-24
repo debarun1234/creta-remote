@@ -63,7 +63,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-private fun shiftMonth(yyyymm: String, delta: Int): String {
+internal fun shiftMonth(yyyymm: String, delta: Int): String {
     val c = Calendar.getInstance()
     c.clear()
     c.set(yyyymm.take(4).toInt(), yyyymm.substring(4, 6).toInt() - 1, 1)
@@ -71,7 +71,7 @@ private fun shiftMonth(yyyymm: String, delta: Int): String {
     return SimpleDateFormat("yyyyMM", Locale.US).format(c.time)
 }
 
-private fun monthTitle(yyyymm: String): String {
+internal fun monthTitle(yyyymm: String): String {
     val c = Calendar.getInstance()
     c.clear()
     c.set(yyyymm.take(4).toInt(), yyyymm.substring(4, 6).toInt() - 1, 1)
@@ -169,11 +169,11 @@ fun TripsScreen(d: AppData, vm: AppViewModel) {
                 HeatCalendar(month, byDay, sel?.day) { selected = it }
                 CalendarLegend()
                 t?.note?.let { Txt(it, size = 12.sp, color = C.Dim) }
-                Txt("Distances come from the car's odometer, so they match the dash. Bluelink's own trip figures run a little short.", size = 11.sp, color = C.Faint)
+                Txt("Distances come from the car's odometer, which counts whole kilometres, so a day can read up to 1 km either side of the dash. Bluelink's own trip figures run several percent short.", size = 11.sp, color = C.Faint)
             }
         }
 
-        if (sel != null) DayCard(sel, ins)
+        if (sel != null) DayCard(sel, ins, vm)
     }
 }
 
@@ -320,7 +320,7 @@ private fun WeekdayRhythm(days: List<DayRow>) {
 // ------------------------------------------------------------------------------------------ calendar
 
 @Composable
-private fun NavArrow(left: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun NavArrow(left: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
         Modifier.size(38.dp).clip(CircleShape).background(C.Surface2).border(1.dp, C.Line, CircleShape)
             .graphicsLayer { alpha = if (enabled) 1f else 0.35f }
@@ -396,7 +396,7 @@ private fun HeatCalendar(month: String, byDay: Map<String, DayRow>, selected: St
 // ------------------------------------------------------------------------------------------ day
 
 @Composable
-private fun DayCard(sel: DayRow, ins: com.debarun.cretaremote.data.FuelInsights) {
+private fun DayCard(sel: DayRow, ins: com.debarun.cretaremote.data.FuelInsights, vm: AppViewModel) {
     val entries = remember(sel.day, sel.trips) { sel.entries().sortedBy { minutesOfDay(it.startHhmmss) ?: 0 } }
     val hasMetrics = entries.any { (it.distKm ?: 0.0) > 0 || (it.driveMin ?: 0) > 0 || (it.avgKmh ?: 0.0) > 0 }
     val tc = if (sel.dist > 0) ins.tripCost(sel.dist, dayNoon(sel.day)) else null
@@ -417,6 +417,8 @@ private fun DayCard(sel: DayRow, ins: com.debarun.cretaremote.data.FuelInsights)
             if (entries.any { minutesOfDay(it.startHhmmss) != null }) {
                 DayTimeline(sel.day, entries)
             }
+
+            DayMap(sel.day, sel.count, vm)
 
             StatGrid(
                 listOf(

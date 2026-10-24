@@ -27,6 +27,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.debarun.cretaremote.AppViewModel
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,7 +62,7 @@ private fun durText(ms: Long): String {
 }
 
 @Composable
-fun PlacesScreen(d: AppData) {
+fun PlacesScreen(d: AppData, vm: AppViewModel) {
     val car = d.car
     val ctx = LocalContext.current
     val lat = car?.lat
@@ -82,46 +85,65 @@ fun PlacesScreen(d: AppData) {
         } catch (e: Exception) { /* nothing can handle it */ }
     }
 
-    val trail = remember(d.places, lat, lon) {
-        val pts = d.places.reversed().takeLast(40).map { it.lat to it.lon }.toMutableList()
-        if (lat != null && lon != null && (pts.isEmpty() || Geo.distanceM(pts.last().first, pts.last().second, lat, lon) > 20.0)) pts += lat to lon
+    val thisMonth = remember { java.text.SimpleDateFormat("yyyyMM", java.util.Locale.US).format(java.util.Date()) }
+    var month by rememberSaveable { mutableStateOf(thisMonth) }
+    val isCurrent = month == thisMonth
+    val earliest by produceState<String?>(null, d.places) { value = vm.earliestPlaceMonth() }
+    // a month's parking spots, newest first; re-read whenever a new place is recorded
+    val monthPlaces by produceState(emptyList<com.debarun.cretaremote.data.Place>(), month, d.places) { value = vm.placesFor(month) }
+
+    // only the spots themselves, no lines between them; in the current month the car sits at the end
+    val trail = remember(monthPlaces, lat, lon, isCurrent) {
+        val pts = monthPlaces.reversed().map { it.lat to it.lon }.toMutableList()
+        if (isCurrent && lat != null && lon != null && (pts.isEmpty() || Geo.distanceM(pts.last().first, pts.last().second, lat, lon) > 20.0)) pts += lat to lon
         pts.toList()
     }
     val latest = d.places.firstOrNull()
     val since = car?.locTime ?: latest?.ts
     val placeName = latest?.label
-    val trailKm = remember(d.places) {
-        d.places.zipWithNext().sumOf { (a, b) -> Geo.distanceM(a.lat, a.lon, b.lat, b.lon) } / 1000.0
-    }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(scroll).statusBarsPadding()
             .padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Column {
-            Eyebrow("Location")
-            Txt("Places", size = 30.sp, weight = FontWeight.Light, spacing = (-0.5).sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Eyebrow("Location")
+                Txt("Places", size = 30.sp, weight = FontWeight.Light, spacing = (-0.5).sp)
+            }
+            NavArrow(true, enabled = earliest != null && month > earliest!!) { month = shiftMonth(month, -1) }
+            Txt(monthTitle(month), Modifier.padding(horizontal = 10.dp), size = 14.sp, weight = FontWeight.Medium)
+            NavArrow(false, enabled = month < thisMonth) { month = shiftMonth(month, 1) }
         }
 
         Panel(Modifier.fillMaxWidth()) {
             if (trail.isEmpty()) {
                 Box(Modifier.fillMaxWidth().height(260.dp), contentAlignment = Alignment.Center) {
-                    Txt(if (d.refreshing) "Finding your Creta…" else "Waiting for the car's parked location…", size = 13.sp, color = C.Dim)
+                    Txt(
+                        when {
+                            !isCurrent -> "No parking spots recorded in ${monthTitle(month)}."
+                            d.refreshing -> "Finding your Creta…"
+                            else -> "Waiting for the car's parked location…"
+                        },
+                        size = 13.sp, color = C.Dim,
+                    )
                 }
             } else {
                 CarMap(
                     points = trail,
-                    label = placeName ?: "Your Creta",
-                    sub = since?.let { "Parked ${agoText(it, now)}" },
+                    label = if (isCurrent) placeName ?: "Your Creta" else null,
+                    sub = if (isCurrent) since?.let { "Parked ${agoText(it, now)}" } else null,
                     modifier = Modifier.fillMaxWidth().height(400.dp),
                     focus = focus,
-                    me = me,
+                    me = if (isCurrent) me else null,
+                    showTrail = false,
+                    carHere = isCurrent,
                 )
             }
         }
 
-        Panel(Modifier.fillMaxWidth()) {
+        if (isCurrent) Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Eyebrow("Parked")
                 Txt(placeName ?: if (lat != null) "${Fmt.n(lat, 5)}, ${Fmt.n(lon ?: 0.0, 5)}" else "Unknown", size = 22.sp, weight = FontWeight.Medium)
@@ -158,15 +180,18 @@ fun PlacesScreen(d: AppData) {
             Column(Modifier.padding(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Eyebrow("Parking history", Modifier.weight(1f))
-                    if (d.places.size > 1) Txt("${d.places.size} places · ${Fmt.n(trailKm, if (trailKm < 10) 1 else 0)} km", size = 11.sp, color = C.Faint)
+                    if (monthPlaces.isNotEmpty()) Txt("${monthPlaces.size} place${if (monthPlaces.size == 1) "" else "s"} in ${monthTitle(month)}", size = 11.sp, color = C.Faint)
                 }
-                if (d.places.isEmpty()) {
-                    Txt("Nothing yet. Each time the car parks somewhere new it is added here.", Modifier.padding(top = 10.dp), size = 13.sp, color = C.Dim)
+                if (monthPlaces.isEmpty()) {
+                    Txt(
+                        if (isCurrent) "Nothing yet. Each time the car parks somewhere new it is added here." else "Nothing was recorded in ${monthTitle(month)}.",
+                        Modifier.padding(top = 10.dp), size = 13.sp, color = C.Dim,
+                    )
                 }
-                val shown = d.places.take(20)
+                val shown = monthPlaces.take(60)
                 shown.forEachIndexed { i, p ->
-                    val older = d.places.getOrNull(i + 1)
-                    val newer = d.places.getOrNull(i - 1)
+                    val older = monthPlaces.getOrNull(i + 1)
+                    val newer = monthPlaces.getOrNull(i - 1)
                     val stay = (newer?.ts ?: now) - p.ts
                     val a by animateFloatAsState(1f, tween(500, i * 60), label = "ph")
                     Row(
@@ -183,7 +208,7 @@ fun PlacesScreen(d: AppData) {
                         Column(Modifier.weight(1f).padding(start = 8.dp, top = 12.dp, bottom = 12.dp)) {
                             Txt(p.label ?: "${Fmt.n(p.lat, 4)}, ${Fmt.n(p.lon, 4)}", size = 15.sp, weight = FontWeight.Medium)
                             Txt(dateTimeText(p.ts), size = 12.sp, color = C.Faint)
-                            Txt(if (i == 0) "Parked ${durText(stay)} so far" else "Stayed ${durText(stay)}", size = 12.sp, color = C.Dim)
+                            Txt(if (i == 0 && isCurrent) "Parked ${durText(stay)} so far" else if (newer == null) "Last spot of the month" else "Stayed ${durText(stay)}", size = 12.sp, color = C.Dim)
                         }
                         if (older != null) {
                             val km = Geo.distanceM(older.lat, older.lon, p.lat, p.lon) / 1000.0
@@ -195,7 +220,7 @@ fun PlacesScreen(d: AppData) {
                     }
                 }
                 Txt(
-                    "Bluelink reports where the car is parked, not a live GPS track. The trail connects the places it has parked since this app started recording. Tap a place to see it on the map.",
+                    "Bluelink reports where the car is parked, not a live GPS track, so this shows the places it has parked since the app started recording, month by month. Tap a place to see it on the map. A day's route on the road is on the Trips screen.",
                     Modifier.padding(top = 14.dp), size = 11.sp, color = C.Faint,
                 )
             }

@@ -21,6 +21,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun run(cmd: Cmd) { viewModelScope.launch { repo.run(cmd) } }
     fun cancelCmd() = repo.cancelCmd()
     fun checkUpdates() = repo.checkUpdates(manual = true)
+    suspend fun placesFor(yyyymm: String) = repo.placesFor(yyyymm)
+    suspend fun earliestPlaceMonth() = repo.earliestPlaceMonth()
+    suspend fun dayRoute(day: String) = repo.dayRoute(day)
     fun installUpdate() = repo.installUpdate()
     fun saveTyreLog(psi: List<Double?>) = repo.saveTyreLog(psi)
     fun rawForSupport() = repo.rawForSupport()
