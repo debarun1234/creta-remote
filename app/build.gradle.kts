@@ -4,6 +4,7 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.mappls.services.android")
 }
 
 // Release signing comes from keystore.properties (git-ignored, written by scripts/make-keystore.sh). Without it the release APK is built unsigned.

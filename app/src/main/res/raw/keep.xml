@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Mappls SDK looks its credentials up by resource name at runtime, so the resource shrinker must not strip them. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:shrinkMode="lenient"
+    tools:keep="@string/*" />
