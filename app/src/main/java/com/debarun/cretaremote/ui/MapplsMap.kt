@@ -34,7 +34,13 @@ fun MapplsRouteMap(
 ) {
     val ctx = LocalContext.current
     val owner = LocalLifecycleOwner.current
-    val view = remember(points, legs) { runCatching { MapView(ctx) }.getOrNull() }
+    // started here, on first use, so a problem with the Mappls SDK can only ever cost this map and never the app opening
+    val view = remember(points, legs) {
+        runCatching {
+            com.mappls.sdk.maps.Mappls.getInstance(ctx.applicationContext)
+            MapView(ctx)
+        }.getOrNull()
+    }
     if (view == null) {
         androidx.compose.runtime.LaunchedEffect(Unit) { onFail() }
         return
