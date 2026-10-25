@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -91,13 +92,16 @@ fun DayMap(day: String, trips: Int, vm: AppViewModel, dayKm: Double = 0.0) {
     }
 }
 
-/** Mappls' map when it can start, else our own OpenStreetMap view. */
+/** Mappls' map when it can start, else our own OpenStreetMap view (with a short note of why). */
 @Composable
 private fun RouteMap(points: List<Pair<Double, Double>>, routes: List<MapLeg>, numbered: Boolean) {
-    var mappls by remember { mutableStateOf(true) }
-    if (mappls) {
-        MapplsRouteMap(points, routes, numbered, Modifier.fillMaxSize(), onFail = { mappls = false })
-    } else {
-        CarMap(points = points, label = null, sub = null, modifier = Modifier.fillMaxSize(), showTrail = false, carHere = false, routes = routes, numbered = numbered)
+    var whyNot by remember { mutableStateOf<String?>(null) }
+    Box(Modifier.fillMaxSize()) {
+        if (whyNot == null) {
+            MapplsRouteMap(points, routes, numbered, Modifier.fillMaxSize(), onFail = { whyNot = it })
+        } else {
+            CarMap(points = points, label = null, sub = null, modifier = Modifier.fillMaxSize(), showTrail = false, carHere = false, routes = routes, numbered = numbered)
+            Txt("OpenStreetMap shown: $whyNot", Modifier.align(Alignment.BottomStart).padding(8.dp), size = 10.sp, color = C.Faint)
+        }
     }
 }

@@ -39,38 +39,51 @@ fun MapplsRouteMap(
     legs: List<MapLeg>,
     numbered: Boolean,
     modifier: Modifier = Modifier,
-    onFail: () -> Unit,
+    onFail: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
     val owner = LocalLifecycleOwner.current
+    // if the app died the last time this map was opened, it stays off (until the next app version) rather than crashing again
+    val blocked = remember { MapplsGuard.blockedReason(ctx) }
+    if (blocked != null) {
+        androidx.compose.runtime.LaunchedEffect(Unit) { onFail(blocked) }
+        return
+    }
     // started here, on first use, so a problem with the Mappls SDK can only ever cost this map and never the app opening
     val view = remember(points, legs) {
-        runCatching {
+        try {
+            MapplsGuard.begin(ctx)
             com.mappls.sdk.maps.Mappls.getInstance(ctx.applicationContext)
             MapView(ctx)
-        }.getOrNull()
+        } catch (e: Throwable) {
+            MapplsGuard.ok(ctx)
+            null
+        }
     }
     if (view == null) {
-        androidx.compose.runtime.LaunchedEffect(Unit) { onFail() }
+        androidx.compose.runtime.LaunchedEffect(Unit) { onFail("the Mappls SDK could not start") }
         return
     }
     DisposableEffect(view, owner) {
         var destroyed = false
-        view.onCreate(null)
-        view.getMapAsync(object : OnMapReadyCallback {
-            override fun onMapReady(map: MapplsMap) {
-                try { draw(map, points, legs, numbered, onFail) } catch (e: Throwable) { onFail() }
-            }
+        fun safe(step: () -> Unit) { try { step() } catch (e: Throwable) { onFail("Mappls error: ${e.javaClass.simpleName}") } }
+        safe {
+            view.onCreate(null)
+            view.getMapAsync(object : OnMapReadyCallback {
+                override fun onMapReady(map: MapplsMap) { safe { draw(map, points, legs, numbered, onFail) } }
 
-            override fun onMapError(code: Int, message: String?) { onFail() }
-        })
+                override fun onMapError(code: Int, message: String?) { onFail("Mappls map error $code") }
+            })
+        }
         val obs = LifecycleEventObserver { _, e ->
-            when (e) {
-                Lifecycle.Event.ON_START -> view.onStart()
-                Lifecycle.Event.ON_RESUME -> view.onResume()
-                Lifecycle.Event.ON_PAUSE -> view.onPause()
-                Lifecycle.Event.ON_STOP -> view.onStop()
-                else -> {}
+            safe {
+                when (e) {
+                    Lifecycle.Event.ON_START -> view.onStart()
+                    Lifecycle.Event.ON_RESUME -> view.onResume()
+                    Lifecycle.Event.ON_PAUSE -> view.onPause()
+                    Lifecycle.Event.ON_STOP -> { view.onStop(); MapplsGuard.ok(ctx) }
+                    else -> {}
+                }
             }
         }
         owner.lifecycle.addObserver(obs)
@@ -80,12 +93,42 @@ fun MapplsRouteMap(
                 destroyed = true
                 runCatching { view.onPause(); view.onStop(); view.onDestroy() }
             }
+            MapplsGuard.ok(ctx)
         }
     }
     AndroidView(factory = { view }, modifier = modifier)
 }
 
-private fun draw(map: MapplsMap, points: List<Pair<Double, Double>>, legs: List<MapLeg>, numbered: Boolean, onFail: () -> Unit) {
+/**
+ * A crash inside the Mappls SDK's native code cannot be caught, so this remembers that a map was opened and not closed normally.
+ * If the next launch finds that, Mappls stays off for this app version and the OpenStreetMap view is used instead.
+ */
+private object MapplsGuard {
+    private fun prefs(ctx: android.content.Context) = ctx.getSharedPreferences("mappls_guard", android.content.Context.MODE_PRIVATE)
+
+    private fun version(ctx: android.content.Context): Long =
+        runCatching { androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(ctx.packageManager.getPackageInfo(ctx.packageName, 0)) }.getOrDefault(0L)
+
+    fun blockedReason(ctx: android.content.Context): String? {
+        val p = prefs(ctx)
+        val v = version(ctx)
+        if (p.getLong("ver", -1L) != v) p.edit().clear().putLong("ver", v).commit()
+        p.getString("broken", null)?.let { return it }
+        val pid = p.getInt("pid", 0)
+        if (pid != 0 && pid != android.os.Process.myPid()) {
+            val why = "the Mappls map closed the app last time it was opened"
+            p.edit().putString("broken", why).putInt("pid", 0).commit()
+            return why
+        }
+        return null
+    }
+
+    fun begin(ctx: android.content.Context) { prefs(ctx).edit().putInt("pid", android.os.Process.myPid()).commit() }
+
+    fun ok(ctx: android.content.Context) { prefs(ctx).edit().putInt("pid", 0).apply() }
+}
+
+private fun draw(map: MapplsMap, points: List<Pair<Double, Double>>, legs: List<MapLeg>, numbered: Boolean, onFail: (String) -> Unit) {
     // the camera first, so something sensible shows even before the style has finished loading
     val all = (points + legs.flatMap { it.pts })
     if (all.isNotEmpty()) {
@@ -104,7 +147,7 @@ private fun draw(map: MapplsMap, points: List<Pair<Double, Double>>, legs: List<
             addLines(style, "straight", legs.filter { it.straight && it.pts.size >= 2 }, "#9AA0A6", 2f, dashed = true)
             addStops(style, points, numbered)
         } catch (e: Throwable) {
-            onFail()
+            onFail("Mappls could not draw the route")
         }
     }
 }
