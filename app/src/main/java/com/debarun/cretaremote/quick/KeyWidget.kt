@@ -143,10 +143,11 @@ object Widgets {
         else key(v, R.id.w_ign, R.id.i_ign, R.id.t_ign, R.drawable.ic_shortcut_start, "Start", st, open(c, "START"))
     }
 
+    /** A widget key that sends a command: opens the progress panel, which sends it and shows how it goes. */
     fun run(c: Context, cmd: Cmd): PendingIntent =
-        PendingIntent.getBroadcast(
-            c, cmd.ordinal,
-            Intent(c, KeyWidget::class.java).setAction(RUN).putExtra("cmd", cmd.name),
+        PendingIntent.getActivity(
+            c, 200 + cmd.ordinal,
+            Intent(c, CommandPanelActivity::class.java).putExtra("cmd", cmd.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_HISTORY),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 

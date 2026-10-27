@@ -271,7 +271,7 @@ private fun NavBar(selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = 
 }
 
 @Composable
-private fun CommandBanner(data: com.debarun.cretaremote.data.AppData, onCancel: () -> Unit, modifier: Modifier = Modifier) {
+internal fun CommandBanner(data: com.debarun.cretaremote.data.AppData, onCancel: () -> Unit, modifier: Modifier = Modifier) {
     val c = data.cmd
     AnimatedVisibility(
         visible = c.phase != Phase.IDLE,

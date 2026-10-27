@@ -45,6 +45,15 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
+        <!-- See-through screen a widget key opens to show the command's progress; it is not a place to return to. -->
+        <activity
+            android:name=".quick.CommandPanelActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Creta.Panel" />
+
         <activity
             android:name=".quick.WidgetConfigActivity"
             android:exported="true"
