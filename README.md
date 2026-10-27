@@ -114,3 +114,10 @@ The Trips day map first uses a phone-recorded path, then any start/end positions
 (`TripGeoParser` looks for them under any field name), then falls back to parking spots. Each start→end pair is routed through Mappls
 (MapmyIndia) when a REST key is set in Settings → Maps, otherwise through OpenStreetMap routing. Map tiles are still OpenStreetMap.
 "Copy what Bluelink sent for this day" under a day's trip list copies the stored raw trip JSON.
+
+### Live window
+
+After a command (lock, unlock, start, stop, horn, lights, boot) or a manual live refresh, the app holds the connection to the car for 3 minutes:
+it reads the car's status live at 3, 8 and 16 s and then every 15 s, so a lock taking effect or a door/bonnet closing shows up without refreshing.
+A change in what the car reports extends the window by a minute, never beyond 6 minutes from the start (an awake modem drains the car's 12 V battery).
+It stops early if the car stops answering. The Home status chip reads "Car awake · live" while it runs.

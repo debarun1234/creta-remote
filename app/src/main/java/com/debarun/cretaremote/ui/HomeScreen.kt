@@ -116,7 +116,7 @@ fun HomeScreen(d: AppData, vm: AppViewModel, flash: Int, onAct: (Cmd) -> Unit, o
             if (car?.engineOn == true) StatusChip("Engine on", C.Amber, pulse = true)
             when {
                 d.link == Link.WAKING -> StatusChip("Waking car…", C.Cyan, pulse = true)
-                d.link == Link.AWAKE && now - (d.linkAt ?: 0L) < 5 * 60_000L -> StatusChip("Car awake", C.Green)
+                d.link == Link.AWAKE && now - (d.linkAt ?: 0L) < 5 * 60_000L -> StatusChip(if ((d.liveUntil ?: 0L) > now) "Car awake · live" else "Car awake", C.Green)
                 d.link == Link.ASLEEP || d.link == Link.AWAKE -> StatusChip("Car asleep", C.Dim)
             }
             Txt(

@@ -113,6 +113,8 @@ data class AppData(
     val tyreLog: TyreLog? = null,
     val liveTrip: LiveTrip? = null,
     val update: UpdateUi = UpdateUi(),
+    /** While set and in the future, the app is holding the connection to the car and re-reading it every few seconds. */
+    val liveUntil: Long? = null,
 )
 
 fun DayRow.entries(): List<TripEntry> = try {
@@ -1174,7 +1176,7 @@ class Repository(private val ctx: Context) {
                 val idle = !_data.value.cmd.busy
                 if (idle && _data.value.settings.keepAwake && !engine && nowMs - lastActivity < KEEP_AWAKE_MS && nowMs - lastContact() > PING_EVERY_MS) {
                     wakePing()
-                } else if (idle && !DriveState.active && nowMs - lastQuick > (if (engine) 30_000L else 60_000L)) {
+                } else if (idle && !DriveState.active && liveJob?.isActive != true && nowMs - lastQuick > (if (engine) 30_000L else 60_000L)) {
                     lastQuick = nowMs
                     refresh(live = false, quiet = true, light = true)
                 }
@@ -1204,12 +1206,66 @@ class Repository(private val ctx: Context) {
             }
         }
         persistLink()
+        if (!quiet && ok == true) holdLive()
         return ok
     }
 
     /** One wake-up call, used by the keep-awake loop and when the Quick Settings panel is opened. */
     suspend fun wakePing() {
         syncLive(quiet = true)
+    }
+
+    @Volatile private var liveUntil = 0L
+    @Volatile private var liveCap = 0L
+    private var liveJob: Job? = null
+
+    /**
+     * Holds the connection to the car for a few minutes after something happened (a command, or a manual refresh): the car's modem
+     * stays awake for a while after it has answered, so a live read then comes back in seconds, and a lock taking effect, a door or the
+     * bonnet being closed shows on screen without pressing refresh. It reads at 3, 8 and 16 s, then every [LIVE_EVERY_MS], for
+     * [LIVE_WINDOW_MS] after the last activity. A change in what the car reports extends it by a minute, but never past [LIVE_CAP_MS]
+     * from the start, because a modem kept awake runs the car's 12 V battery down. It stops early if the car stops answering.
+     */
+    fun holdLive(ms: Long = LIVE_WINDOW_MS) {
+        if (!hasCreds()) return
+        val now = System.currentTimeMillis()
+        if (liveJob?.isActive != true) liveCap = now + LIVE_CAP_MS
+        val until = minOf(now + ms, liveCap)
+        if (until > liveUntil) { liveUntil = until; _data.update { it.copy(liveUntil = until) } }
+        if (liveJob?.isActive == true) return
+        liveJob = scope.launch {
+            var n = 0
+            var misses = 0
+            var sig: List<Any?>? = null
+            try {
+                while (System.currentTimeMillis() < liveUntil) {
+                    delay((when (n) { 0 -> 3_000L; 1 -> 5_000L; 2 -> 8_000L; else -> LIVE_EVERY_MS }).milliseconds)
+                    n++
+                    if (System.currentTimeMillis() >= liveUntil) break
+                    if (_data.value.cmd.busy || DriveState.active) continue
+                    val ok = refresh(live = true, quiet = true, light = true)
+                    if (ok == null) continue
+                    if (ok) {
+                        misses = 0
+                        _data.update { it.copy(link = Link.AWAKE, linkAt = System.currentTimeMillis()) }
+                        lastPing = System.currentTimeMillis()
+                        persistLink()
+                        val c = _data.value.car
+                        val now2 = c?.let { listOf(it.locked, it.doorsOpen, it.windowsOpen, it.hoodOpen, it.trunkOpen, it.engineOn, it.climateOn) }
+                        if (sig != null && now2 != sig) {
+                            val t = minOf(System.currentTimeMillis() + 60_000L, liveCap)
+                            if (t > liveUntil) { liveUntil = t; _data.update { it.copy(liveUntil = t) } }
+                        }
+                        sig = now2
+                    } else if (++misses >= 2) {
+                        break
+                    }
+                }
+            } finally {
+                liveUntil = 0L
+                _data.update { it.copy(liveUntil = null) }
+            }
+        }
     }
 
     /** For callers outside the app (Quick Settings tiles): wake the car if it has not been pinged lately. */
@@ -1378,7 +1434,7 @@ class Repository(private val ctx: Context) {
                     persistLink()
                     lastActivity = System.currentTimeMillis()
                     log(Outcome.SUCCESS, doneText(cmd))
-                    scope.launch { delay(4.seconds); refresh(live = false) }
+                    holdLive()
                 }
                 ActionResult.FAILED -> {
                     setCmd(cmd, Phase.FAIL, "The car rejected the command.")
@@ -1434,6 +1490,9 @@ class Repository(private val ctx: Context) {
         const val PASSWORD_WARN_DAYS = 7
         const val PING_EVERY_MS = 3 * 60_000L
         const val DRIVE_LIVE_MS = 2 * 60_000L
+        const val LIVE_WINDOW_MS = 3 * 60_000L
+        const val LIVE_CAP_MS = 6 * 60_000L
+        const val LIVE_EVERY_MS = 15_000L
     }
 
     private fun setCmd(c: Cmd, p: Phase, m: String) = _data.update { it.copy(cmd = CmdUi(c, p, m)) }
