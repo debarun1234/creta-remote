@@ -49,6 +49,7 @@ fun MapplsRouteMap(
         androidx.compose.runtime.LaunchedEffect(Unit) { onFail(blocked) }
         return
     }
+    var startError: String? = null
     // started here, on first use, so a problem with the Mappls SDK can only ever cost this map and never the app opening
     val view = remember(points, legs) {
         try {
@@ -57,11 +58,12 @@ fun MapplsRouteMap(
             MapView(ctx)
         } catch (e: Throwable) {
             MapplsGuard.ok(ctx)
+            startError = "${e.javaClass.simpleName}: ${e.message?.take(80)}"
             null
         }
     }
     if (view == null) {
-        androidx.compose.runtime.LaunchedEffect(Unit) { onFail("the Mappls SDK could not start") }
+        androidx.compose.runtime.LaunchedEffect(Unit) { onFail("the Mappls SDK could not start (${startError ?: "unknown"})") }
         return
     }
     DisposableEffect(view, owner) {

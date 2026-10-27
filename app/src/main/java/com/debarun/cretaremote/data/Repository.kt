@@ -907,21 +907,21 @@ class Repository(private val ctx: Context) {
     suspend fun probeRoute(day: String, tid: String): String = withContext(Dispatchers.IO) {
         val out = StringBuilder()
         val dayBody = { JSONObject().put("tripPeriodType", 1).put("setTripDay", day) }
+        val tidNum: Any = tid.toLongOrNull() ?: tid
         val tries = listOf<Pair<String, JSONObject?>>(
-            "tripinfo" to dayBody(),
-            "tripinfo" to dayBody().put("serviceTID", tid),
-            "tripinfo/detail" to dayBody().put("serviceTID", tid),
-            "tripinfo/route" to dayBody().put("serviceTID", tid),
-            "tripdetail?serviceTID=$tid" to null,
-            "trip/route?serviceTID=$tid" to null,
-            "driving/route?serviceTID=$tid" to null,
-            "drvinfo?serviceTID=$tid" to null,
-            "tripinfo/path" to dayBody().put("serviceTID", tid),
-            "trip/path?tripId=$tid" to null,
-            "drive-history/trip/path?tripId=$tid" to null,
-            "location/route?serviceTID=$tid" to null,
-            "location/routes" to null,
-            "routeinfo?serviceTID=$tid" to null,
+            // "tripinfo/detail" exists (it answered 400, not 404); these find the body it wants. The first, with the id as text, was rejected.
+            "tripinfo/detail" to dayBody().put("serviceTID", tidNum),
+            "tripinfo/detail" to JSONObject().put("serviceTID", tidNum),
+            "tripinfo/detail" to JSONObject().put("tripPeriodType", 1).put("serviceTID", tidNum),
+            "tripinfo/detail" to JSONObject().put("tripId", tidNum),
+            "tripinfo/detail" to JSONObject().put("tripPeriodType", 2).put("setTripDay", day).put("serviceTID", tidNum),
+            "tripinfo/detail?serviceTID=$tid" to null,
+            "tripinfo/detail" to JSONObject(),
+            "tripinfo/detail/route" to JSONObject().put("serviceTID", tidNum),
+            "tripinfo/detail/path" to JSONObject().put("serviceTID", tidNum),
+            "tripinfo/driving" to JSONObject().put("serviceTID", tidNum),
+            "tripinfo/map" to JSONObject().put("serviceTID", tidNum),
+            "drvhistory" to JSONObject().put("serviceTID", tidNum),
         )
         for ((path, body) in tries) {
             val r = try { api { s -> client.probe(s, ensureVehicle(s), path, body) } } catch (e: Exception) { "error: ${e.message}" }
