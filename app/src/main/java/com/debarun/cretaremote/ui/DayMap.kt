@@ -92,16 +92,31 @@ fun DayMap(day: String, trips: Int, vm: AppViewModel, dayKm: Double = 0.0) {
     }
 }
 
-/** Mappls' map when it can start, else our own OpenStreetMap view (with a short note of why). */
+/** The day's route on Mappls' map. If Mappls cannot start, it says why and offers a retry; there is no other map behind it. */
 @Composable
 private fun RouteMap(points: List<Pair<Double, Double>>, routes: List<MapLeg>, numbered: Boolean) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     var whyNot by remember { mutableStateOf<String?>(null) }
+    var attempt by remember { mutableStateOf(0) }
     Box(Modifier.fillMaxSize()) {
-        if (whyNot == null) {
-            MapplsRouteMap(points, routes, numbered, Modifier.fillMaxSize(), onFail = { whyNot = it })
+        val why = whyNot
+        if (why == null) {
+            androidx.compose.runtime.key(attempt) {
+                MapplsRouteMap(points, routes, numbered, Modifier.fillMaxSize(), onFail = { whyNot = it })
+            }
         } else {
-            CarMap(points = points, label = null, sub = null, modifier = Modifier.fillMaxSize(), showTrail = false, carHere = false, routes = routes, numbered = numbered)
-            Txt("OpenStreetMap shown: $whyNot", Modifier.align(Alignment.BottomStart).padding(8.dp), size = 10.sp, color = C.Faint)
+            Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.Center) {
+                Txt("The Mappls map could not load: $why", size = 12.sp, color = C.Dim)
+                Txt(
+                    "Try again",
+                    Modifier.padding(top = 8.dp).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                        resetMapplsGuard(ctx)
+                        whyNot = null
+                        attempt++
+                    },
+                    size = 12.sp, color = C.Cyan,
+                )
+            }
         }
     }
 }

@@ -101,6 +101,11 @@ fun MapplsRouteMap(
     AndroidView(factory = { view }, modifier = modifier)
 }
 
+/** Clears the "Mappls closed the app last time" marker, for the Try again button. */
+fun resetMapplsGuard(ctx: android.content.Context) {
+    ctx.getSharedPreferences("mappls_guard", android.content.Context.MODE_PRIVATE).edit().remove("broken").putInt("pid", 0).apply()
+}
+
 /**
  * A crash inside the Mappls SDK's native code cannot be caught, so this remembers that a map was opened and not closed normally.
  * If the next launch finds that, Mappls stays off for this app version and the OpenStreetMap view is used instead.
