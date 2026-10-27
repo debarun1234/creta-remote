@@ -55,7 +55,18 @@ fun MapplsRouteMap(
         try {
             MapplsGuard.begin(ctx)
             com.mappls.sdk.maps.Mappls.getInstance(ctx.applicationContext)
-            MapView(ctx)
+            MapView(ctx).also { mv ->
+                // while a finger is on the map, the page behind it must not scroll
+                mv.setOnTouchListener { v, ev ->
+                    when (ev.actionMasked) {
+                        android.view.MotionEvent.ACTION_DOWN, android.view.MotionEvent.ACTION_MOVE, android.view.MotionEvent.ACTION_POINTER_DOWN ->
+                            v.parent?.requestDisallowInterceptTouchEvent(true)
+                        android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL ->
+                            v.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                    false
+                }
+            }
         } catch (e: Throwable) {
             MapplsGuard.ok(ctx)
             startError = "${e.javaClass.simpleName}: ${e.message?.take(80)}"
@@ -68,13 +79,14 @@ fun MapplsRouteMap(
     }
     DisposableEffect(view, owner) {
         var destroyed = false
-        fun safe(step: () -> Unit) { try { step() } catch (e: Throwable) { onFail("Mappls error: ${e.javaClass.simpleName}") } }
+        fun fail(why: String) { if (!destroyed) onFail(why) }
+        fun safe(step: () -> Unit) { try { step() } catch (e: Throwable) { fail("Mappls error: ${e.javaClass.simpleName}") } }
         safe {
             view.onCreate(null)
             view.getMapAsync(object : OnMapReadyCallback {
-                override fun onMapReady(map: MapplsMap) { safe { draw(map, points, legs, numbered, onFail) } }
+                override fun onMapReady(map: MapplsMap) { if (!destroyed) safe { draw(map, points, legs, numbered) { fail(it) } } }
 
-                override fun onMapError(code: Int, message: String?) { onFail("Mappls map error $code") }
+                override fun onMapError(code: Int, message: String?) { fail("Mappls map error $code") }
             })
         }
         val obs = LifecycleEventObserver { _, e ->
@@ -98,7 +110,7 @@ fun MapplsRouteMap(
             MapplsGuard.ok(ctx)
         }
     }
-    AndroidView(factory = { view }, modifier = modifier)
+    androidx.compose.runtime.key(view) { AndroidView(factory = { view }, modifier = modifier) }
 }
 
 /** Clears the "Mappls closed the app last time" marker, for the Try again button. */

@@ -30,6 +30,12 @@ import com.debarun.cretaremote.data.DayRoute
  */
 @Composable
 fun DayMap(day: String, trips: Int, vm: AppViewModel, dayKm: Double = 0.0) {
+    // everything below belongs to this one day: a different day starts from nothing, so it never shows another day's route or error
+    androidx.compose.runtime.key(day) { DayMapBody(day, vm, dayKm) }
+}
+
+@Composable
+private fun DayMapBody(day: String, vm: AppViewModel, dayKm: Double) {
     val roads = false
     val route by produceState<DayRoute?>(null, day, roads) {
         value = vm.dayRoute(day, roads)
