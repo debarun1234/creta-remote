@@ -210,6 +210,21 @@ class BluelinkClient {
         }
     }
 
+    /**
+     * One trip in detail: the timed positions the car passed (`tripList`), plus start and goal. The official app sends exactly these five
+     * fields to `tripinfo/detail`; times are yyyyMMddHHmmss as they come in the day's trip list.
+     */
+    suspend fun tripDetail(s: Session, v: Vehicle, day: String, tid: String, start: String, end: String): JSONObject? = withContext(Dispatchers.IO) {
+        try {
+            exec(Request.Builder().url("${SPA}vehicles/${v.id}/tripinfo/detail").withAuth(s, v.ccs2).post(tripDetailBody(day, tid, start, end).toString().toByteArray().toRequestBody(JSON)).build()).optJSONObject("resMsg")
+        } catch (e: BluelinkException) {
+            if (e.auth) throw e else null
+        }
+    }
+
+    fun tripDetailBody(day: String, tid: String, start: String, end: String): JSONObject =
+        JSONObject().put("setTripDay", day).put("setTripStartTime", start).put("setServiceTID", tid).put("tripStartTime", start).put("tripEndTime", end)
+
     /** Diagnostic: what Bluelink answers on a path under this vehicle, as plain text with the VIN removed. */
     suspend fun probe(s: Session, v: Vehicle, path: String, body: JSONObject?): String = withContext(Dispatchers.IO) {
         try {
@@ -218,7 +233,7 @@ class BluelinkClient {
             http.newCall(req).execute().use { r ->
                 var t = r.body?.string().orEmpty()
                 if (v.vin.isNotBlank()) t = t.replace(v.vin, "<VIN>")
-                "HTTP ${r.code}: ${t.take(2500)}"
+                "HTTP ${r.code}: ${t.take(6000)}"
             }
         } catch (e: Exception) {
             "error: ${e.message}"

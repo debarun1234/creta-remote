@@ -78,6 +78,8 @@ data class DayRoute(
     val tripsCovered: Int = 0,
     /** Where the picture comes from: "phone" (recorded GPS), "bluelink" (trip start/end/route Bluelink sent) or "stops" (parking spots). */
     val source: String = "stops",
+    /** How many of the day's trips came with the driven path from Bluelink's trip detail. */
+    val detailTrips: Int = 0,
 )
 
 /** The drive in progress, odometer since the engine started, and a rough economy from the gauge while it lasts. */
@@ -881,8 +883,16 @@ class Repository(private val ctx: Context) {
             return@withContext DayRoute(stops, emptyList(), row?.count ?: 0, pieces, km, covered, "phone")
         }
         // trip positions Bluelink itself sent, if its trip data carries any
-        val geos = row?.entries().orEmpty().sortedBy { it.startHhmmss.padStart(6, '0') }.mapNotNull { TripGeoParser.parse(it.raw) }
-            .filter { it.path.size >= 2 || (it.start != null && it.end != null) }
+        val entries = row?.entries().orEmpty().sortedBy { it.startHhmmss.padStart(6, '0') }
+        var detailTrips = 0
+        val geos = entries.mapNotNull { e ->
+            val base = TripGeoParser.parse(e.raw)
+            val driven = tripPath(day, e.raw)
+            if (driven != null) {
+                detailTrips++
+                TripGeo(base?.start ?: driven.first(), base?.end ?: driven.last(), driven)
+            } else base
+        }.filter { it.path.size >= 2 || (it.start != null && it.end != null) }
         if (geos.isNotEmpty()) {
             val gStops = mutableListOf<Place>()
             fun addStop(p: Pair<Double, Double>?) {
@@ -897,44 +907,50 @@ class Repository(private val ctx: Context) {
                     RouteLeg(g.path, false, g.path.zipWithNext().sumOf { (x, y) -> Geo.distanceM(x.first, x.second, y.first, y.second) } / 1000.0)
                 } else if (roads) routeLegPts(g.start!!, g.end!!) else straightLeg(g.start!!, g.end!!)
             }
-            return@withContext DayRoute(gStops, gLegs, row?.count ?: 0, tripsCovered = geos.size, source = "bluelink")
+            return@withContext DayRoute(gStops, gLegs, row?.count ?: 0, tripsCovered = geos.size, source = "bluelink", detailTrips = detailTrips)
         }
         val legs = stops.zipWithNext().map { (a, b) -> if (roads) routeLeg(a, b) else straightLeg(a.lat to a.lon, b.lat to b.lon) }
         DayRoute(stops, legs, row?.count ?: 0)
     }
 
+    /**
+     * The path one trip drove, from Bluelink's trip detail, or null if Bluelink has none for it. A found path is kept on the phone,
+     * so each trip is asked for once; a miss is not kept, so it is tried again next time.
+     */
+    private suspend fun tripPath(day: String, raw: String?): List<Pair<Double, Double>>? {
+        val o = try { JSONObject(raw ?: return null) } catch (e: Exception) { return null }
+        val tid = o.optString("serviceTID")
+        val st = o.optString("tripStartTime")
+        val et = o.optString("tripEndTime")
+        if (tid.isBlank() || st.isBlank() || et.isBlank()) return null
+        val key = "tripdetail:$tid:$st"
+        store.kvGet(key)?.let { c ->
+            val pts = c.split(';').mapNotNull { q ->
+                val f = q.split(',')
+                val la = f.getOrNull(0)?.toDoubleOrNull()
+                val lo = f.getOrNull(1)?.toDoubleOrNull()
+                if (la != null && lo != null) la to lo else null
+            }
+            if (pts.size >= 2) return pts
+        }
+        val resp = try { api { s -> client.tripDetail(s, ensureVehicle(s), day, tid, st, et) } } catch (e: Exception) { null }
+        val path = TripGeoParser.parseDetail(resp)?.path.orEmpty()
+        if (path.size < 2) return null
+        store.kvPut(key, path.joinToString(";") { "${it.first},${it.second}" })
+        return path
+    }
+
     /** Diagnostic for the Trips screen: asks Bluelink for a day's whole trip answer and a few guessed route paths, and reports what came back. */
     suspend fun probeRoute(day: String, tid: String): String = withContext(Dispatchers.IO) {
-        val out = StringBuilder()
-        val tidNum: Any = tid.toLongOrNull() ?: tid
-        // the start and end times Bluelink gave that trip, for bodies that want them
         val entry = runCatching {
             store.days(day.take(6)).firstOrNull { it.day == day }?.entries().orEmpty()
                 .mapNotNull { e -> e.raw?.let { JSONObject(it) } }.firstOrNull { it.optString("serviceTID") == tid }
         }.getOrNull()
         val st = entry?.optString("tripStartTime").orEmpty()
         val et = entry?.optString("tripEndTime").orEmpty()
-        fun o() = JSONObject()
-        // Every earlier body was refused with "Invalid json body format" (even {}), so these try other field names and combinations.
-        val tries = listOf<Pair<String, JSONObject?>>(
-            "tripinfo/detail" to o().put("tripStartTime", st).put("tripEndTime", et),
-            "tripinfo/detail" to o().put("tripPeriodType", 1).put("setTripDay", day).put("tripStartTime", st).put("tripEndTime", et),
-            "tripinfo/detail" to o().put("tripDay", day).put("serviceTID", tidNum),
-            "tripinfo/detail" to o().put("setTripDay", day).put("serviceTID", tidNum),
-            "tripinfo/detail" to o().put("tripDay", day).put("tripStartTime", st).put("tripEndTime", et).put("serviceTID", tidNum),
-            "tripinfo/detail" to o().put("tripPeriodType", 1).put("setTripDay", day).put("tripStartTime", st).put("tripEndTime", et).put("serviceTID", tidNum),
-            "tripinfo/detail" to o().put("serviceTID", tid),
-            "tripinfo/detail" to o().put("tid", tidNum),
-            "tripinfo/detail" to o().put("tripTID", tidNum),
-            "tripinfo/detail" to o().put("tripList", org.json.JSONArray().put(o().put("serviceTID", tidNum).put("tripStartTime", st).put("tripEndTime", et))),
-            "tripinfo/detail" to o().put("tripInfo", o().put("serviceTID", tidNum).put("tripStartTime", st).put("tripEndTime", et)),
-            "tripinfo/detail" to o().put("startTime", st).put("endTime", et).put("serviceTID", tidNum),
-        )
-        for ((path, body) in tries) {
-            val r = try { api { s -> client.probe(s, ensureVehicle(s), path, body) } } catch (e: Exception) { "error: ${e.message}" }
-            out.append(if (body == null) "GET " else "POST ").append(path).append(" -> ").append(r).append("\n\n")
-        }
-        out.toString()
+        val body = client.tripDetailBody(day, tid, st, et)
+        val r = try { api { s -> client.probe(s, ensureVehicle(s), "tripinfo/detail", body) } } catch (e: Exception) { "error: ${e.message}" }
+        "POST tripinfo/detail $body -> $r"
     }
 
     /** A direct line between two real points: no streets are implied. */

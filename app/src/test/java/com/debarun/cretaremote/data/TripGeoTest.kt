@@ -46,4 +46,16 @@ class TripGeoTest {
         assertNotNull(TripGeoParser.parse("""{"lat":13.1,"lon":77.5,"endLat":13.0,"endLon":77.6}"""))
         assertTrue(TripGeoParser.describe("{}").contains("no positions"))
     }
+
+    @Test fun readsTheDrivenPathFromTripDetail() {
+        val root = org.json.JSONObject("""{"tripInfo":{"tripDay":"20261024","tripStartCoord":{"lat":13.1,"lon":77.5},"tripEndCoord":{"lat":13.0,"lon":77.6},
+            "tripList":[{"tripTime":"20261024122000","lat":13.1,"lon":77.5},{"tripTime":"20261024122010","lat":13.1,"lon":77.5},
+            {"tripTime":"20261024122020","lat":13.05,"lon":77.55},{"tripTime":"20261024122030","lat":13.0,"lon":77.6}]}}""")
+        val g = TripGeoParser.parseDetail(root)!!
+        assertEquals(3, g.path.size) // the repeated first fix is dropped
+        assertEquals(13.05, g.path[1].first, 1e-9)
+        assertEquals(77.6, g.end!!.second, 1e-9)
+        assertNull(TripGeoParser.parseDetail(null))
+        assertNull(TripGeoParser.parseDetail(org.json.JSONObject("""{"tripInfo":{"tripList":[]}}""")))
+    }
 }

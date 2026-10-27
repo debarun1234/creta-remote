@@ -38,6 +38,46 @@ object TripGeoParser {
         return TripGeo(s, e, path)
     }
 
+    /**
+     * The `tripinfo/detail` answer: `tripList` is the timed positions the car passed (the official app draws its route from them),
+     * `tripStartCoord` / `tripEndCoord` are where it began and ended. Returns null when no usable position is in it.
+     */
+    fun parseDetail(root: JSONObject?): TripGeo? {
+        if (root == null) return null
+        val list = findList(root) ?: return null
+        val path = ArrayList<Pair<Double, Double>>()
+        for (i in 0 until list.length()) {
+            val o = list.optJSONObject(i) ?: continue
+            val la = num(o, "lat") ?: continue
+            val lo = num(o, "lon") ?: num(o, "lng") ?: continue
+            if (!valid(la, lo)) continue
+            val pt = la to lo
+            if (path.lastOrNull() != pt) path += pt
+        }
+        val info = root.optJSONObject("tripInfo") ?: root
+        fun coord(k: String): Pair<Double, Double>? {
+            val o = info.optJSONObject(k) ?: return null
+            val la = num(o, "lat") ?: return null
+            val lo = num(o, "lon") ?: num(o, "lng") ?: return null
+            return if (valid(la, lo)) la to lo else null
+        }
+        val s = coord("tripStartCoord") ?: path.firstOrNull()
+        val e = coord("tripEndCoord") ?: path.lastOrNull()
+        if (path.isEmpty() && s == null && e == null) return null
+        return TripGeo(s, e, path)
+    }
+
+    private fun findList(node: Any?): JSONArray? {
+        when (node) {
+            is JSONObject -> {
+                node.optJSONArray("tripList")?.let { return it }
+                for (k in node.keys()) findList(node.opt(k))?.let { return it }
+            }
+            is JSONArray -> for (i in 0 until node.length()) findList(node.opt(i))?.let { return it }
+        }
+        return null
+    }
+
     private fun walk(node: Any?, where: String, pts: MutableList<Found>, lines: MutableList<List<Pair<Double, Double>>>) {
         when (node) {
             is JSONObject -> {

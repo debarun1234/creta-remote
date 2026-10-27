@@ -59,11 +59,15 @@ fun DayMap(day: String, trips: Int, vm: AppViewModel, dayKm: Double = 0.0) {
                     RouteMap(r.stops.map { it.lat to it.lon }, r.legs.map { MapLeg(it.pts, it.straight) }, true)
                 }
                 val lineKm = r.legs.sumOf { it.km }
-                Txt("${r.tripsCovered} of ${r.trips} trip${if (r.trips == 1) "" else "s"} · start and end points from Bluelink", size = 12.sp, color = C.Dim)
                 Txt(
-                    "Bluelink sends only where each trip began and ended, not the streets driven. " +
-                        "The dashed lines only join those points, they are not the path. Settings → Record the route captures the real path from this phone on later drives." +
-                        " Together they span about ${Fmt.n(lineKm, 1)} km" +
+                    "${r.tripsCovered} of ${r.trips} trip${if (r.trips == 1) "" else "s"} · " +
+                        if (r.detailTrips > 0) "${r.detailTrips} with the driven path from Bluelink" else "start and end points from Bluelink",
+                    size = 12.sp, color = C.Dim,
+                )
+                Txt(
+                    (if (r.detailTrips > 0) "Red lines are the positions Bluelink recorded along the trip. " else "Bluelink returned no driven path for these trips. ") +
+                        (if (r.legs.any { it.straight }) "Dashed lines only join a trip's start and end, they are not the path. " else "") +
+                        "Together they span about ${Fmt.n(lineKm, 1)} km" +
                         (if (dayKm > lineKm * 1.2 + 1.0) ", while the odometer counted ${Fmt.n(dayKm, 1)} km, so the car went further than these lines." else "."),
                     size = 11.sp, color = C.Faint,
                 )
