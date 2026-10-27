@@ -906,22 +906,29 @@ class Repository(private val ctx: Context) {
     /** Diagnostic for the Trips screen: asks Bluelink for a day's whole trip answer and a few guessed route paths, and reports what came back. */
     suspend fun probeRoute(day: String, tid: String): String = withContext(Dispatchers.IO) {
         val out = StringBuilder()
-        val dayBody = { JSONObject().put("tripPeriodType", 1).put("setTripDay", day) }
         val tidNum: Any = tid.toLongOrNull() ?: tid
+        // the start and end times Bluelink gave that trip, for bodies that want them
+        val entry = runCatching {
+            store.days(day.take(6)).firstOrNull { it.day == day }?.entries().orEmpty()
+                .mapNotNull { e -> e.raw?.let { JSONObject(it) } }.firstOrNull { it.optString("serviceTID") == tid }
+        }.getOrNull()
+        val st = entry?.optString("tripStartTime").orEmpty()
+        val et = entry?.optString("tripEndTime").orEmpty()
+        fun o() = JSONObject()
+        // Every earlier body was refused with "Invalid json body format" (even {}), so these try other field names and combinations.
         val tries = listOf<Pair<String, JSONObject?>>(
-            // "tripinfo/detail" exists (it answered 400, not 404); these find the body it wants. The first, with the id as text, was rejected.
-            "tripinfo/detail" to dayBody().put("serviceTID", tidNum),
-            "tripinfo/detail" to JSONObject().put("serviceTID", tidNum),
-            "tripinfo/detail" to JSONObject().put("tripPeriodType", 1).put("serviceTID", tidNum),
-            "tripinfo/detail" to JSONObject().put("tripId", tidNum),
-            "tripinfo/detail" to JSONObject().put("tripPeriodType", 2).put("setTripDay", day).put("serviceTID", tidNum),
-            "tripinfo/detail?serviceTID=$tid" to null,
-            "tripinfo/detail" to JSONObject(),
-            "tripinfo/detail/route" to JSONObject().put("serviceTID", tidNum),
-            "tripinfo/detail/path" to JSONObject().put("serviceTID", tidNum),
-            "tripinfo/driving" to JSONObject().put("serviceTID", tidNum),
-            "tripinfo/map" to JSONObject().put("serviceTID", tidNum),
-            "drvhistory" to JSONObject().put("serviceTID", tidNum),
+            "tripinfo/detail" to o().put("tripStartTime", st).put("tripEndTime", et),
+            "tripinfo/detail" to o().put("tripPeriodType", 1).put("setTripDay", day).put("tripStartTime", st).put("tripEndTime", et),
+            "tripinfo/detail" to o().put("tripDay", day).put("serviceTID", tidNum),
+            "tripinfo/detail" to o().put("setTripDay", day).put("serviceTID", tidNum),
+            "tripinfo/detail" to o().put("tripDay", day).put("tripStartTime", st).put("tripEndTime", et).put("serviceTID", tidNum),
+            "tripinfo/detail" to o().put("tripPeriodType", 1).put("setTripDay", day).put("tripStartTime", st).put("tripEndTime", et).put("serviceTID", tidNum),
+            "tripinfo/detail" to o().put("serviceTID", tid),
+            "tripinfo/detail" to o().put("tid", tidNum),
+            "tripinfo/detail" to o().put("tripTID", tidNum),
+            "tripinfo/detail" to o().put("tripList", org.json.JSONArray().put(o().put("serviceTID", tidNum).put("tripStartTime", st).put("tripEndTime", et))),
+            "tripinfo/detail" to o().put("tripInfo", o().put("serviceTID", tidNum).put("tripStartTime", st).put("tripEndTime", et)),
+            "tripinfo/detail" to o().put("startTime", st).put("endTime", et).put("serviceTID", tidNum),
         )
         for ((path, body) in tries) {
             val r = try { api { s -> client.probe(s, ensureVehicle(s), path, body) } } catch (e: Exception) { "error: ${e.message}" }
